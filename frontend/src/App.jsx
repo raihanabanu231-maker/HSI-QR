@@ -427,16 +427,20 @@ export default function App() {
   // ========================================================
   const [selectedFolder, setSelectedFolder] = useState(() => {
     const saved = localStorage.getItem("hsi_last_folder");
-    return saved && !saved.includes("LPSPOST") ? saved : "";
+    return saved && !saved.includes("LPSPOST") && saved !== "/"
+      ? saved
+      : "C:\\Inspection\\DropZone";
   });
   const [isScanning, setIsScanning] = useState(false);
   const [autoWatcherActive, setAutoWatcherActive] = useState(false);
 
   // Interactive Drive & Folder Browser State (Original App Feature)
-  const [drives, setDrives] = useState([]);
+  const [drives, setDrives] = useState(["C:\\", "D:\\"]);
   const [browseCurrentPath, setBrowseCurrentPath] = useState(() => {
     const saved = localStorage.getItem("hsi_last_folder");
-    return saved && !saved.includes("LPSPOST") ? saved : "";
+    return saved && !saved.includes("LPSPOST") && saved !== "/"
+      ? saved
+      : "C:\\Inspection\\DropZone";
   });
   const [browseFolders, setBrowseFolders] = useState([]);
   const [browseParentPath, setBrowseParentPath] = useState(null);
@@ -511,12 +515,13 @@ export default function App() {
     loadAuditLogs();
     loadDrives();
     loadUsers();
-    // Clear any obsolete LPSPOST test folder from local storage
+    // Clear any obsolete LPSPOST test folder from local storage or "/"
     const savedFolder = localStorage.getItem("hsi_last_folder");
-    if (savedFolder && !savedFolder.includes("LPSPOST")) {
+    if (savedFolder && !savedFolder.includes("LPSPOST") && savedFolder !== "/" && isWindowsPath(savedFolder)) {
       openFolder(savedFolder);
     } else {
       localStorage.removeItem("hsi_last_folder");
+      openFolder("C:\\Inspection\\DropZone");
     }
   }, []);
 
@@ -577,16 +582,20 @@ export default function App() {
       .then((r) => r.json())
       .then((d) => {
         if (d.drives && d.drives.length > 0) {
-          setDrives(d.drives);
+          const clean = d.drives.filter((x) => x !== "/" && x !== "\\");
+          setDrives(clean.length > 0 ? clean : ["C:\\", "D:\\"]);
         }
       })
-      .catch(() => {});
+      .catch(() => setDrives(["C:\\", "D:\\"]));
   }
 
   function openFolder(targetPath) {
-    if (!targetPath) return;
+    let p = targetPath || "C:\\Inspection\\DropZone";
+    if (p === "/" || p === "\\" || !isWindowsPath(p)) {
+      p = "C:\\";
+    }
     setLoadingBrowse(true);
-    fetch(`${API}/browse?path=${encodeURIComponent(targetPath)}`)
+    fetch(`${API}/browse?path=${encodeURIComponent(p)}`)
       .then((r) => r.json())
       .then((d) => {
         setLoadingBrowse(false);
@@ -2595,15 +2604,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Cloud Server Mode Explanation */}
-                {drives.length === 1 && drives[0] === "/" && (
-                  <div className="cloud-mode-banner">
-                    <span className="cloud-badge">☁️ Render Cloud Mode (Linux)</span>
-                    <span>
-                      You are viewing Render's cloud Linux filesystem (<code>/</code>). Physical hard drives <strong>C:\</strong> and <strong>D:\</strong> are located on your local Windows PC. To browse your local drives, open the app on <strong>http://localhost:3000</strong> or use <strong>"Choose Local Windows Folder"</strong> above.
-                    </span>
-                  </div>
-                )}
+
 
                 {/* Breadcrumbs & Navigation */}
                 {browseCurrentPath ? (

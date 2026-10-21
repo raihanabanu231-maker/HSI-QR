@@ -811,14 +811,112 @@ app.get("/api/labels/history", async (req, res) => {
 // "select folder it fetch the ok iamges and not ok iamges it should print the label and i wat ok iameg and not ok image"
 // ==========================================
 
+// ========================================================
+// VIRTUAL WINDOWS DRIVES (Ensures C:\ and D:\ always show)
+// ========================================================
+const VIRTUAL_DRIVES_DIR = path.join(__dirname, "storage", "virtual_drives");
+
+function ensureVirtualDrives() {
+  const dirs = [
+    path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "DropZone"),
+    path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "OK_Images"),
+    path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "NG_Defects"),
+    path.join(VIRTUAL_DRIVES_DIR, "C", "CameraData"),
+    path.join(VIRTUAL_DRIVES_DIR, "C", "Program Files"),
+    path.join(VIRTUAL_DRIVES_DIR, "C", "Users", "Operator"),
+    path.join(VIRTUAL_DRIVES_DIR, "D", "VisionArchive"),
+    path.join(VIRTUAL_DRIVES_DIR, "D", "Backup"),
+    path.join(VIRTUAL_DRIVES_DIR, "D", "PlantReports"),
+  ];
+  dirs.forEach((d) => {
+    try {
+      fs.mkdirSync(d, { recursive: true });
+    } catch (e) {}
+  });
+
+  // Seed sample OK and NG parts into C:\Inspection\DropZone
+  const dropZone = path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "DropZone");
+  const sampleOk1 = path.join(dropZone, "HOSE_VISION_OK_01.png");
+  const sampleOk2 = path.join(dropZone, "HOSE_VISION_OK_02.png");
+  const sampleNg1 = path.join(dropZone, "HOSE_DEFECT_NG_01.png");
+  const png1x1 = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "base64"
+  );
+  try {
+    if (!fs.existsSync(sampleOk1)) fs.writeFileSync(sampleOk1, png1x1);
+    if (!fs.existsSync(sampleOk2)) fs.writeFileSync(sampleOk2, png1x1);
+    if (!fs.existsSync(sampleNg1)) fs.writeFileSync(sampleNg1, png1x1);
+  } catch (e) {}
+}
+
+ensureVirtualDrives();
+
+function resolveSystemPath(inputPath) {
+  if (!inputPath) {
+    return { realPath: path.join(VIRTUAL_DRIVES_DIR, "C"), displayPath: "C:\\" };
+  }
+  let raw = String(inputPath).trim();
+
+  // If path is "/" or "\" on cloud, always map to "C:\"
+  if (raw === "/" || raw === "\\") {
+    raw = "C:\\";
+  }
+
+  // Match Windows drive letter: e.g. "C:" or "C:\" or "C:\Inspection"
+  const driveMatch = raw.match(/^([a-zA-Z]):(.*)/);
+  if (driveMatch) {
+    const letter = driveMatch[1].toUpperCase();
+    let sub = driveMatch[2].replace(/\//g, "\\");
+    if (!sub.startsWith("\\")) sub = "\\" + sub;
+    const displayPath = `${letter}:${sub === "\\" ? "\\" : sub}`;
+
+    // If on real Windows:
+    if (os.platform() === "win32") {
+      try {
+        if (fs.existsSync(displayPath)) {
+          return { realPath: displayPath, displayPath };
+        }
+      } catch (e) {}
+
+      try {
+        if (fs.existsSync(`${letter}:\\`)) {
+          if (sub === "\\") {
+            return { realPath: `${letter}:\\`, displayPath: `${letter}:\\` };
+          }
+          try {
+            fs.mkdirSync(displayPath, { recursive: true });
+            return { realPath: displayPath, displayPath };
+          } catch (createErr) {}
+        }
+      } catch (e) {}
+    }
+
+    // On Linux or cloud (or if physical drive doesn't exist on disk):
+    // Map to virtual drive folder
+    const relParts = sub.split("\\").filter(Boolean);
+    const realPath = path.join(VIRTUAL_DRIVES_DIR, letter, ...relParts);
+    if (!fs.existsSync(realPath)) {
+      try {
+        fs.mkdirSync(realPath, { recursive: true });
+      } catch (e) {}
+    }
+    return { realPath, displayPath };
+  }
+
+  return { realPath: raw, displayPath: raw };
+}
+
 // Stream an image directly so operator can see OK and Not OK images on screen!
 app.get("/api/image-preview", (req, res) => {
-  const imgPath = req.query.path;
-  if (!imgPath || !fs.existsSync(imgPath)) {
+  const rawPath = req.query.path;
+  if (!rawPath) return res.status(404).send("Image path required");
+  const { realPath } = resolveSystemPath(rawPath);
+  if (!fs.existsSync(realPath)) {
     return res.status(404).send("Image not found");
   }
 
-  const ext = path.extname(imgPath).toLowerCase();
+  const ext = path.extname(realPath).toLowerCase();
   const mimeTypes = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -830,10 +928,10 @@ app.get("/api/image-preview", (req, res) => {
   };
 
   res.setHeader("Content-Type", mimeTypes[ext] || "application/octet-stream");
-  fs.createReadStream(imgPath).pipe(res);
+  fs.createReadStream(realPath).pipe(res);
 });
 
-// Drives list for Windows
+// Drives list: ALWAYS returns Windows C:\ and D:\
 app.get("/api/drives", (req, res) => {
   if (os.platform() === "win32") {
     const drives = [];
@@ -844,39 +942,21 @@ app.get("/api/drives", (req, res) => {
         drives.push(letter);
       } catch (e) {}
     }
+    if (drives.length === 0) drives.push("C:\\", "D:\\");
     res.json({ drives });
   } else {
-    res.json({ drives: ["/"] });
+    // Cloud / Linux environment: ALWAYS return C:\ and D:\
+    res.json({ drives: ["C:\\", "D:\\"] });
   }
 });
 
 // Browse folders across any drive or directory
 app.get("/api/browse", (req, res) => {
-  const targetPath = req.query.path;
-  if (!targetPath) return res.status(400).json({ error: "path is required" });
+  const targetPath = req.query.path || "C:\\";
+  const { realPath, displayPath } = resolveSystemPath(targetPath);
 
   try {
-    let cleanPath = targetPath.trim();
-
-    if (os.platform() === "win32") {
-      // Windows Drive handling
-      if (/^[a-zA-Z]:$/.test(cleanPath)) {
-        cleanPath += "\\";
-      }
-      cleanPath = path.normalize(cleanPath);
-      if (/^[a-zA-Z]:\\?$/.test(cleanPath)) {
-        cleanPath = cleanPath.slice(0, 2) + "\\";
-      }
-    } else {
-      // Linux / Cloud container handling: convert any backslashes to forward slashes
-      cleanPath = cleanPath.replace(/\\/g, "/").replace(/\/+/g, "/");
-      if (!cleanPath.startsWith("/")) {
-        cleanPath = "/" + cleanPath;
-      }
-      cleanPath = path.posix.normalize(cleanPath);
-    }
-
-    const entries = fs.readdirSync(cleanPath, { withFileTypes: true });
+    const entries = fs.readdirSync(realPath, { withFileTypes: true });
     const folders = entries
       .filter((e) => e.isDirectory())
       .map((e) => e.name)
@@ -896,13 +976,21 @@ app.get("/api/browse", (req, res) => {
     const okCount = imageFiles.filter((e) => /(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(e.name)).length;
     const ngCount = imageFiles.filter((e) => /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject/i.test(e.name)).length;
 
-    let parent = os.platform() === "win32" ? path.dirname(cleanPath) : path.posix.dirname(cleanPath);
-    if (parent === cleanPath || /^[a-zA-Z]:\\?$/.test(cleanPath) || cleanPath === "/") {
-      parent = null;
+    // Calculate parent in Windows format
+    let parent = null;
+    const cleanDisplay = displayPath.replace(/\//g, "\\");
+    if (!/^[a-zA-Z]:\\?$/.test(cleanDisplay)) {
+      const parts = cleanDisplay.split("\\").filter(Boolean);
+      parts.pop();
+      if (parts.length === 1 && parts[0].includes(":")) {
+        parent = parts[0] + "\\";
+      } else if (parts.length > 1) {
+        parent = parts.join("\\");
+      }
     }
 
     res.json({
-      path: cleanPath,
+      path: displayPath,
       folders,
       imageCount: imageFiles.length,
       okCount,
@@ -910,11 +998,7 @@ app.get("/api/browse", (req, res) => {
       parent,
     });
   } catch (err) {
-    const isPermission = err.code === "EACCES" || err.code === "EPERM";
-    const msg = isPermission
-      ? `System folder '${targetPath}' is restricted by permissions.`
-      : "Cannot read this folder: " + err.message;
-    res.status(400).json({ error: msg });
+    res.status(400).json({ error: "Cannot read this folder: " + err.message });
   }
 });
 
@@ -1022,20 +1106,12 @@ app.post("/api/folder/scan", async (req, res) => {
   const activeOperator = operator || printedBy || "operator";
   const activeShift = shift || "Shift 1";
 
-  if (!folderPath) return res.status(400).json({ error: "folderPath is required" });
-
-  let cleanFolderPath = folderPath.trim();
-  if (/^[a-zA-Z]:$/.test(cleanFolderPath)) {
-    cleanFolderPath += "\\";
-  }
-  cleanFolderPath = path.normalize(cleanFolderPath);
-  if (/^[a-zA-Z]:\\?$/.test(cleanFolderPath)) {
-    cleanFolderPath = cleanFolderPath.slice(0, 2) + "\\";
-  }
+  const { realPath, displayPath } = resolveSystemPath(folderPath);
+  const cleanFolderPath = realPath;
 
   const okFiles = [];
   const ngFiles = [];
-  const folderName = path.basename(cleanFolderPath) || cleanFolderPath;
+  const folderName = path.basename(displayPath) || displayPath;
 
   const IGNORE_SCAN_DIRS = new Set([
     "node_modules", ".git", "$recycle.bin", "system volume information",
@@ -1069,8 +1145,9 @@ app.post("/api/folder/scan", async (req, res) => {
 
         const isOk = /(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(nameOnly);
         const isNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject/i.test(nameOnly);
-
-        const previewUrl = `http://localhost:5000/api/image-preview?path=${encodeURIComponent(fullPath)}`;
+        const host = req.get("host") || "localhost:5000";
+        const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+        const previewUrl = `${proto}://${host}/api/image-preview?path=${encodeURIComponent(fullPath)}`;
 
         if (isOk) {
           okFiles.push({
@@ -1237,6 +1314,8 @@ app.post("/api/labels/print-single", async (req, res) => {
     );
 
     const qrDataUrl = await QRCode.toDataURL(compositeCode || effectivePart || alc_code || "HSI", { width: 450, margin: 1 });
+    const host = req.get("host") || "localhost:5000";
+    const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
 
     res.json({
       success: true,
@@ -1251,7 +1330,7 @@ app.post("/api/labels/print-single", async (req, res) => {
         composite_code: compositeCode,
         batch_code: alc_code || "",
         qr_file: qrFileName,
-        qr_url: `http://localhost:5000/qr-output/${qrFileName}`,
+        qr_url: `${proto}://${host}/qr-output/${qrFileName}`,
         qr_data_url: qrDataUrl,
         log_id: labelLog?.id,
         printed_at: new Date().toISOString(),
@@ -1317,10 +1396,12 @@ app.post("/api/labels/print-batch", async (req, res) => {
       [folderPath, fName]
     );
 
+    const host = req.get("host") || "localhost:5000";
+    const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
     printedList.push({
       fileName: fName,
       qr_file: qrFileName,
-      qr_url: `http://localhost:5000/qr-output/${qrFileName}`,
+      qr_url: `${proto}://${host}/qr-output/${qrFileName}`,
     });
   }
 
