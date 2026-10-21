@@ -1,0 +1,27 @@
+# Node dependencies
+node_modules/
+package-lock.json.bak
+
+# Production builds
+dist/
+dist-ssr/
+*.local
+
+# Environment variables (Protected Credentials)
+.env
+.env.*
+!.env.example
+
+# Runtime and generated outputs
+backend/qr-output/
+logs/
+*.log
+
+# Temporary / Scratch scripts
+scratch_*.js
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
