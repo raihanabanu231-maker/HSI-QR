@@ -427,9 +427,9 @@ export default function App() {
   // ========================================================
   const [selectedFolder, setSelectedFolder] = useState(() => {
     const saved = localStorage.getItem("hsi_last_folder");
-    return saved && !saved.includes("LPSPOST") && saved !== "/"
+    return saved && saved !== "/" && isWindowsPath(saved)
       ? saved
-      : "C:\\Inspection\\DropZone";
+      : "C:\\LPSPOST";
   });
   const [isScanning, setIsScanning] = useState(false);
   const [autoWatcherActive, setAutoWatcherActive] = useState(false);
@@ -438,9 +438,9 @@ export default function App() {
   const [drives, setDrives] = useState(["C:\\", "D:\\"]);
   const [browseCurrentPath, setBrowseCurrentPath] = useState(() => {
     const saved = localStorage.getItem("hsi_last_folder");
-    return saved && !saved.includes("LPSPOST") && saved !== "/"
+    return saved && saved !== "/" && isWindowsPath(saved)
       ? saved
-      : "C:\\Inspection\\DropZone";
+      : "C:\\LPSPOST";
   });
   const [browseFolders, setBrowseFolders] = useState([]);
   const [browseParentPath, setBrowseParentPath] = useState(null);
@@ -515,13 +515,12 @@ export default function App() {
     loadAuditLogs();
     loadDrives();
     loadUsers();
-    // Clear any obsolete LPSPOST test folder from local storage or "/"
+    // Restore last folder or default to C:\LPSPOST
     const savedFolder = localStorage.getItem("hsi_last_folder");
-    if (savedFolder && !savedFolder.includes("LPSPOST") && savedFolder !== "/" && isWindowsPath(savedFolder)) {
+    if (savedFolder && savedFolder !== "/" && isWindowsPath(savedFolder)) {
       openFolder(savedFolder);
     } else {
-      localStorage.removeItem("hsi_last_folder");
-      openFolder("C:\\Inspection\\DropZone");
+      openFolder("C:\\LPSPOST");
     }
   }, []);
 

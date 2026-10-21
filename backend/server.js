@@ -818,6 +818,7 @@ const VIRTUAL_DRIVES_DIR = path.join(__dirname, "storage", "virtual_drives");
 
 function ensureVirtualDrives() {
   const dirs = [
+    path.join(VIRTUAL_DRIVES_DIR, "C", "LPSPOST"),
     path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "DropZone"),
     path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "OK_Images"),
     path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "NG_Defects"),
@@ -972,9 +973,30 @@ app.get("/api/browse", (req, res) => {
       })
       .sort();
 
-    const imageFiles = entries.filter((e) => !e.isDirectory() && /\.(png|jpe?g|svg|bmp|webp)$/i.test(e.name));
-    const okCount = imageFiles.filter((e) => /(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(e.name)).length;
-    const ngCount = imageFiles.filter((e) => /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject/i.test(e.name)).length;
+    let imageFiles = entries.filter((e) => !e.isDirectory() && /\.(png|jpe?g|svg|bmp|webp)$/i.test(e.name));
+    let okCount = imageFiles.filter((e) => /(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(e.name)).length;
+    let ngCount = imageFiles.filter((e) => /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject/i.test(e.name)).length;
+
+    // If immediate directory has no direct images, count nested camera images (e.g. LPSPOST/P000/...)
+    if (imageFiles.length === 0 && folders.length > 0) {
+      function countSubImages(curDir, d = 0) {
+        if (d > 7) return;
+        try {
+          const subEntries = fs.readdirSync(curDir, { withFileTypes: true });
+          for (const se of subEntries) {
+            if (se.isDirectory()) {
+              if (se.name.startsWith(".") || se.name.toLowerCase() === "node_modules") continue;
+              countSubImages(path.join(curDir, se.name), d + 1);
+            } else if (/\.(png|jpe?g|svg|bmp|webp)$/i.test(se.name)) {
+              imageFiles.push(se.name);
+              if (/(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(se.name)) okCount++;
+              if (/(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject/i.test(se.name)) ngCount++;
+            }
+          }
+        } catch (e) {}
+      }
+      countSubImages(realPath, 0);
+    }
 
     // Calculate parent in Windows format
     let parent = null;
@@ -1119,7 +1141,7 @@ app.post("/api/folder/scan", async (req, res) => {
   ]);
 
   function walk(dir, depth = 0) {
-    if (depth > 2) return; // Prevent traversing more than 2 sub-levels deep
+    if (depth > 8) return; // Support industrial nested camera hierarchies (e.g. LPSPOST/P000/Jan192026/IV00158/0000)
     if (okFiles.length + ngFiles.length >= 250) return; // Memory safety
 
     let entries;
