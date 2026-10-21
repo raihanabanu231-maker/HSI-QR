@@ -117,22 +117,49 @@ function generateQrVectorPath(text) {
   }
 }
 
+function isWindowsPath(p) {
+  return /^[a-zA-Z]:/.test(p);
+}
+
+function joinChildPath(parentPath, childName) {
+  if (!parentPath) return childName;
+  const isWin = isWindowsPath(parentPath);
+  if (isWin) {
+    return parentPath.endsWith("\\") ? `${parentPath}${childName}` : `${parentPath}\\${childName}`;
+  }
+  // Linux / Unix Cloud container path
+  return parentPath.endsWith("/") ? `${parentPath}${childName}` : `${parentPath}/${childName}`;
+}
+
 // Helper to parse path into interactive clickable breadcrumb segments
 function parsePathSegments(fullPath) {
   if (!fullPath) return [];
-  const clean = String(fullPath).replace(/\//g, "\\");
-  const parts = clean.split("\\").filter(Boolean);
-  const segments = [];
-  let accum = "";
-  parts.forEach((part, idx) => {
-    if (idx === 0 && part.includes(":")) {
-      accum = part + "\\";
-    } else {
-      accum = accum.endsWith("\\") ? accum + part : accum + "\\" + part;
-    }
-    segments.push({ name: part, path: accum, isDrive: idx === 0 });
-  });
-  return segments;
+  const isWin = isWindowsPath(fullPath);
+  if (isWin) {
+    const clean = String(fullPath).replace(/\//g, "\\");
+    const parts = clean.split("\\").filter(Boolean);
+    const segments = [];
+    let accum = "";
+    parts.forEach((part, idx) => {
+      if (idx === 0 && part.includes(":")) {
+        accum = part + "\\";
+      } else {
+        accum = accum.endsWith("\\") ? accum + part : accum + "\\" + part;
+      }
+      segments.push({ name: part, path: accum, isDrive: idx === 0 });
+    });
+    return segments;
+  } else {
+    // Linux / Cloud container path
+    const parts = String(fullPath).split("/").filter(Boolean);
+    const segments = [{ name: "/", path: "/", isDrive: true }];
+    let accum = "";
+    parts.forEach((part) => {
+      accum += "/" + part;
+      segments.push({ name: part, path: accum, isDrive: false });
+    });
+    return segments;
+  }
 }
 
 // Web Audio API Synthesizers for Industrial Terminal Verification Feedback
@@ -591,6 +618,59 @@ export default function App() {
     setSelectedFolder(p);
     setBrowseCurrentPath(p);
     scanInspectionFolder(p);
+  }
+
+  function handleLocalFolderSelect(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const folderName = files[0].webkitRelativePath
+      ? files[0].webkitRelativePath.split("/")[0]
+      : "Local Folder";
+
+    const displayPath = `C:\\Inspection\\${folderName}`;
+    setSelectedFolder(displayPath);
+    setBrowseCurrentPath(displayPath);
+
+    const imageFiles = files.filter((f) => /\.(png|jpe?g|svg|bmp|webp)$/i.test(f.name));
+    if (imageFiles.length === 0) {
+      setError(`No image files found in chosen folder '${folderName}'.`);
+      return;
+    }
+
+    const okList = [];
+    const ngList = [];
+
+    imageFiles.forEach((file) => {
+      const isOk = /(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(file.name);
+      const isNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject/i.test(file.name);
+      const previewUrl = URL.createObjectURL(file);
+
+      const item = {
+        name: file.name,
+        fullPath: file.webkitRelativePath || file.name,
+        size: file.size,
+        previewUrl,
+        isSimulated: false,
+      };
+
+      if (isNg) {
+        ngList.push(item);
+      } else {
+        okList.push(item);
+      }
+    });
+
+    setOkImages(okList);
+    setNgImages(ngList);
+    setCounters((prev) => ({
+      ...prev,
+      total_ok: prev.total_ok + okList.length,
+      total_ng: prev.total_ng + ngList.length,
+    }));
+    setSuccessMsg(
+      `Successfully loaded ${imageFiles.length} inspection images from '${folderName}' (${okList.length} OK, ${ngList.length} NG). Click 'Print Label' to print.`
+    );
   }
 
   function handleLogin(e, directCredentials) {
@@ -2492,8 +2572,38 @@ export default function App() {
                         <span>Refresh Current</span>
                       </button>
                     )}
+
+                    {/* Native Windows Folder Picker */}
+                    <input
+                      type="file"
+                      ref={nativeFolderInputRef}
+                      webkitdirectory="true"
+                      directory=""
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={handleLocalFolderSelect}
+                    />
+                    <button
+                      type="button"
+                      className="drive-chip chip-pick-native"
+                      onClick={() => nativeFolderInputRef.current?.click()}
+                      title="Open Windows Explorer dialog to pick any folder directly from your PC (C:\, D:\, Desktop)"
+                    >
+                      <FolderOpen size={13} />
+                      <span>💻 Choose Local Windows Folder (C:\, D:\)</span>
+                    </button>
                   </div>
                 </div>
+
+                {/* Cloud Server Mode Explanation */}
+                {drives.length === 1 && drives[0] === "/" && (
+                  <div className="cloud-mode-banner">
+                    <span className="cloud-badge">☁️ Render Cloud Mode (Linux)</span>
+                    <span>
+                      You are viewing Render's cloud Linux filesystem (<code>/</code>). Physical hard drives <strong>C:\</strong> and <strong>D:\</strong> are located on your local Windows PC. To browse your local drives, open the app on <strong>http://localhost:3000</strong> or use <strong>"Choose Local Windows Folder"</strong> above.
+                    </span>
+                  </div>
+                )}
 
                 {/* Breadcrumbs & Navigation */}
                 {browseCurrentPath ? (
@@ -2594,9 +2704,7 @@ export default function App() {
                     ) : (
                       <div className="subfolders-grid">
                         {browseFolders.map((f) => {
-                          const childPath = browseCurrentPath.endsWith("\\")
-                            ? `${browseCurrentPath}${f}`
-                            : `${browseCurrentPath}\\${f}`;
+                          const childPath = joinChildPath(browseCurrentPath, f);
                           return (
                             <button
                               key={f}

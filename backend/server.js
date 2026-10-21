@@ -857,13 +857,23 @@ app.get("/api/browse", (req, res) => {
 
   try {
     let cleanPath = targetPath.trim();
-    // Normalize drive letters without slash (e.g. "C:" -> "C:\")
-    if (/^[a-zA-Z]:$/.test(cleanPath)) {
-      cleanPath += "\\";
-    }
-    cleanPath = path.normalize(cleanPath);
-    if (/^[a-zA-Z]:\\?$/.test(cleanPath)) {
-      cleanPath = cleanPath.slice(0, 2) + "\\";
+
+    if (os.platform() === "win32") {
+      // Windows Drive handling
+      if (/^[a-zA-Z]:$/.test(cleanPath)) {
+        cleanPath += "\\";
+      }
+      cleanPath = path.normalize(cleanPath);
+      if (/^[a-zA-Z]:\\?$/.test(cleanPath)) {
+        cleanPath = cleanPath.slice(0, 2) + "\\";
+      }
+    } else {
+      // Linux / Cloud container handling: convert any backslashes to forward slashes
+      cleanPath = cleanPath.replace(/\\/g, "/").replace(/\/+/g, "/");
+      if (!cleanPath.startsWith("/")) {
+        cleanPath = "/" + cleanPath;
+      }
+      cleanPath = path.posix.normalize(cleanPath);
     }
 
     const entries = fs.readdirSync(cleanPath, { withFileTypes: true });
@@ -872,7 +882,13 @@ app.get("/api/browse", (req, res) => {
       .map((e) => e.name)
       .filter((name) => {
         const lower = name.toLowerCase();
-        return !name.startsWith("$") && lower !== "system volume information" && lower !== "node_modules" && lower !== ".git";
+        return (
+          !name.startsWith("$") &&
+          !name.startsWith(".") &&
+          lower !== "system volume information" &&
+          lower !== "node_modules" &&
+          lower !== ".git"
+        );
       })
       .sort();
 
@@ -880,8 +896,8 @@ app.get("/api/browse", (req, res) => {
     const okCount = imageFiles.filter((e) => /(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(e.name)).length;
     const ngCount = imageFiles.filter((e) => /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject/i.test(e.name)).length;
 
-    let parent = path.dirname(cleanPath);
-    if (parent === cleanPath || /^[a-zA-Z]:\\?$/.test(cleanPath)) {
+    let parent = os.platform() === "win32" ? path.dirname(cleanPath) : path.posix.dirname(cleanPath);
+    if (parent === cleanPath || /^[a-zA-Z]:\\?$/.test(cleanPath) || cleanPath === "/") {
       parent = null;
     }
 
@@ -894,7 +910,11 @@ app.get("/api/browse", (req, res) => {
       parent,
     });
   } catch (err) {
-    res.status(400).json({ error: "Cannot read this folder: " + err.message });
+    const isPermission = err.code === "EACCES" || err.code === "EPERM";
+    const msg = isPermission
+      ? `System folder '${targetPath}' is restricted by permissions.`
+      : "Cannot read this folder: " + err.message;
+    res.status(400).json({ error: msg });
   }
 });
 
