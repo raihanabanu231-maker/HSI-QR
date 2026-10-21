@@ -50,7 +50,8 @@ import {
 import QRCode from "qrcode";
 import "./App.css";
 
-const API = "http://localhost:5000/api";
+const rawApiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API = rawApiUrl.endsWith("/api") ? rawApiUrl : `${rawApiUrl}/api`;
 
 // HSI AUTO 3-Node Brand Logo Component matching Screenshot 1 & 2
 function HsiLogo({ size = "default", showText = true }) {

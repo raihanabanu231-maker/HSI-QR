@@ -1460,7 +1460,7 @@ app.get("/api/reports/daily-excel", async (req, res) => {
 // Serve static QR codes
 app.use("/qr-output", express.static(QR_OUTPUT_DIR));
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 initDb()
   .then(() => {
     app.listen(PORT, () => console.log(`Backend server running on http://localhost:${PORT}`));
