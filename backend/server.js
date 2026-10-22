@@ -674,8 +674,32 @@ app.post("/api/watcher/start", async (req, res) => {
           const status = isOk ? "OK" : "NG";
           const folderName = path.basename(folderPath);
 
+          // Get next sequential piece serial number for this OK image
+          let pieceSlNo = "0001";
+          if (isOk) {
+            try {
+              const countRes = await pool.query(
+                "SELECT COUNT(*)::int as count FROM logs WHERE status = 'OK' AND folder_path = $1",
+                [folderPath]
+              );
+              const nextSeq = (countRes.rows[0]?.count || 0) + 1;
+              pieceSlNo = String(nextSeq).padStart(4, "0");
+            } catch (e) {
+              pieceSlNo = "0001";
+            }
+          }
+
+          const effectivePart = watcherActiveConfig.part_no || watcherActiveConfig.sub_part_no || "PART";
+          const compositeCode = buildCompositeCode({
+            prefix: "",
+            partNo: effectivePart,
+            slNo: pieceSlNo,
+            modelNo: watcherActiveConfig.model_no,
+            alcCode: watcherActiveConfig.alc_code,
+          });
+
           // 1. Insert real production log in Neon PostgreSQL
-          await insertLog({
+          const newLog = await insertLog({
             folderName,
             folderPath,
             fileName: filename,
@@ -685,29 +709,28 @@ app.post("/api/watcher/start", async (req, res) => {
             partNo: watcherActiveConfig.part_no,
             subPartNo: watcherActiveConfig.sub_part_no,
             alcCode: watcherActiveConfig.alc_code,
+            slNo: isOk ? pieceSlNo : null,
             operator: watcherActiveConfig.printedBy || "operator",
             shift: watcherActiveConfig.shift || "Shift 1",
-            remark: isOk ? "Live Camera Drop: Verified OK" : "Live Camera Drop: Defect NG Flagged",
+            remark: isOk ? "Live Camera Drop: Verified OK (Auto-Printed)" : "Live Camera Drop: Defect NG Flagged",
             printed: isOk && watcherActiveConfig.autoPrint,
           });
 
+          if (isOk && compositeCode && newLog?.id) {
+            try {
+              await pool.query("UPDATE logs SET composite_code = $1 WHERE id = $2", [compositeCode, newLog.id]);
+            } catch (e) {}
+          }
+
           let labelResult = null;
           if (isOk && watcherActiveConfig.autoPrint) {
-            const effectivePart = watcherActiveConfig.part_no || watcherActiveConfig.sub_part_no || "PART";
-            const compositeCode = buildCompositeCode({
-              prefix: "",
-              partNo: effectivePart,
-              slNo: watcherActiveConfig.sl_no,
-              modelNo: watcherActiveConfig.model_no,
-              alcCode: watcherActiveConfig.alc_code,
-            });
-
-            const qrFileName = `lbl_${sanitizeFileName(effectivePart)}_${Date.now()}.png`;
+            const qrFileName = `lbl_${sanitizeFileName(effectivePart)}_${pieceSlNo}_${Date.now()}.png`;
             const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
             await QRCode.toFile(qrPath, compositeCode, { width: 450, margin: 1 });
+            const qrDataUrl = await QRCode.toDataURL(compositeCode, { width: 450, margin: 1 });
 
             await insertLabelLog({
-              slNo: String(watcherActiveConfig.sl_no || ""),
+              slNo: pieceSlNo,
               modelNo: String(watcherActiveConfig.model_no || ""),
               partNo: String(effectivePart || ""),
               subPartNo: String(watcherActiveConfig.sub_part_no || effectivePart || ""),
@@ -721,15 +744,17 @@ app.post("/api/watcher/start", async (req, res) => {
             });
 
             labelResult = {
-              sl_no: watcherActiveConfig.sl_no,
+              sl_no: pieceSlNo,
               model_no: watcherActiveConfig.model_no,
               part_no: effectivePart,
               sub_part_no: watcherActiveConfig.sub_part_no,
               part_name: watcherActiveConfig.part_name,
               alc_code: watcherActiveConfig.alc_code,
               composite_code: compositeCode,
+              batch_code: watcherActiveConfig.alc_code || "",
               qr_file: qrFileName,
               qr_url: `http://localhost:5000/qr-output/${qrFileName}`,
+              qr_data_url: qrDataUrl,
             };
           }
 
@@ -1200,7 +1225,7 @@ app.post("/api/folder/scan", async (req, res) => {
 
   const autoPrintedLabels = [];
 
-  // Process OK images: Log to database if new, DO NOT auto-print unless explicitly requested
+  // Process OK images: Log to database and auto-print one-by-one if autoPrint is true
   for (const f of okFiles) {
     const existing = await pool.query(
       "SELECT id, printed, printed_at, sl_no, composite_code FROM logs WHERE folder_path = $1 AND file_name = $2 LIMIT 1",
@@ -1217,9 +1242,22 @@ app.post("/api/folder/scan", async (req, res) => {
       printedAt = existing.rows[0].printed_at;
       savedSlNo = existing.rows[0].sl_no;
       savedComposite = existing.rows[0].composite_code;
-    } else {
-      // New inspection: log it with printed = false and default piece serial number
-      await insertLog({
+    }
+
+    const pieceSlNo = savedSlNo || f.defaultSlNo;
+    const effectivePart = part_no || sub_part_no || "PART";
+    const compositeCode = savedComposite || buildCompositeCode({
+      prefix: "",
+      partNo: effectivePart,
+      slNo: pieceSlNo,
+      modelNo: model_no,
+      alcCode: alc_code,
+    });
+
+    if (!existing.rows.length) {
+      // New inspection: log it
+      const shouldAutoPrint = !!autoPrint;
+      const newLog = await insertLog({
         folderName,
         folderPath,
         fileName: f.name,
@@ -1229,26 +1267,114 @@ app.post("/api/folder/scan", async (req, res) => {
         partNo: part_no || null,
         subPartNo: sub_part_no || null,
         alcCode: alc_code || null,
-        slNo: f.defaultSlNo,
+        slNo: pieceSlNo,
         operator: activeOperator,
         shift: activeShift,
-        remark: "Camera Inspection: Verified OK",
-        printed: false,
+        remark: shouldAutoPrint ? "Camera Inspection: Verified OK (Auto-Printed)" : "Camera Inspection: Verified OK",
+        printed: shouldAutoPrint,
       });
+
+      if (shouldAutoPrint) {
+        isPrinted = true;
+        printedAt = new Date().toISOString();
+        savedSlNo = pieceSlNo;
+        savedComposite = compositeCode;
+
+        const safePart = sanitizeFileName(effectivePart);
+        const qrFileName = `lbl_100x30_${safePart}_${pieceSlNo}_${Date.now()}.png`;
+        const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
+        try {
+          await QRCode.toFile(qrPath, compositeCode, {
+            width: 450,
+            margin: 1,
+            errorCorrectionLevel: "H",
+            color: { dark: "#000000", light: "#ffffff" },
+          });
+        } catch (e) {}
+
+        await insertLabelLog({
+          slNo: pieceSlNo,
+          modelNo: String(model_no || ""),
+          partNo: String(effectivePart || ""),
+          subPartNo: String(sub_part_no || effectivePart || ""),
+          partName: String(part_name || ""),
+          alcCode: String(alc_code || ""),
+          compositeCode,
+          batchCode: String(alc_code || ""),
+          qrFile: qrFileName,
+          printedBy: activeOperator,
+          printed: true,
+        });
+
+        if (newLog?.id) {
+          try {
+            await pool.query(
+              "UPDATE logs SET composite_code = $1, sl_no = $2 WHERE id = $3",
+              [compositeCode, pieceSlNo, newLog.id]
+            );
+          } catch (e) {}
+        }
+      }
+    } else if (autoPrint && !isPrinted) {
+      // Existing unprinted log - auto-print now!
+      isPrinted = true;
+      printedAt = new Date().toISOString();
+      savedSlNo = pieceSlNo;
+      savedComposite = compositeCode;
+
+      const safePart = sanitizeFileName(effectivePart);
+      const qrFileName = `lbl_100x30_${safePart}_${pieceSlNo}_${Date.now()}.png`;
+      const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
+      try {
+        await QRCode.toFile(qrPath, compositeCode, {
+          width: 450,
+          margin: 1,
+          errorCorrectionLevel: "H",
+          color: { dark: "#000000", light: "#ffffff" },
+        });
+      } catch (e) {}
+
+      await insertLabelLog({
+        slNo: pieceSlNo,
+        modelNo: String(model_no || ""),
+        partNo: String(effectivePart || ""),
+        subPartNo: String(sub_part_no || effectivePart || ""),
+        partName: String(part_name || ""),
+        alcCode: String(alc_code || ""),
+        compositeCode,
+        batchCode: String(alc_code || ""),
+        qrFile: qrFileName,
+        printedBy: activeOperator,
+        printed: true,
+      });
+
+      await pool.query(
+        "UPDATE logs SET printed = TRUE, printed_at = NOW(), sl_no = $1, composite_code = $2 WHERE id = $3",
+        [pieceSlNo, compositeCode, existing.rows[0].id]
+      );
     }
 
     f.printed = isPrinted;
     f.printedAt = printedAt;
-    if (savedSlNo) f.defaultSlNo = savedSlNo;
-    if (isPrinted && (savedSlNo || savedComposite)) {
-      f.label = {
-        sl_no: savedSlNo || f.defaultSlNo,
-        model_no: model_no || "",
-        part_no: part_no || sub_part_no || "",
-        sub_part_no: sub_part_no || part_no || "",
-        alc_code: alc_code || "",
-        composite_code: savedComposite || "",
-      };
+    f.defaultSlNo = savedSlNo || pieceSlNo;
+
+    const host = req.get("host") || "localhost:5000";
+    const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+    f.label = {
+      sl_no: savedSlNo || pieceSlNo,
+      model_no: model_no || "",
+      part_no: effectivePart,
+      sub_part_no: sub_part_no || effectivePart,
+      part_name: part_name || "",
+      alc_code: alc_code || "",
+      composite_code: savedComposite || compositeCode,
+      batch_code: alc_code || "",
+      qr_file: `lbl_100x30_${sanitizeFileName(effectivePart)}_${savedSlNo || pieceSlNo}.png`,
+      qr_url: `${proto}://${host}/api/labels/qr-dataurl?code=${encodeURIComponent(savedComposite || compositeCode)}`,
+    };
+
+    if (isPrinted) {
+      autoPrintedLabels.push(f.label);
     }
   }
 

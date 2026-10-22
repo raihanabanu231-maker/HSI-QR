@@ -440,6 +440,7 @@ export default function App() {
   });
   const [isScanning, setIsScanning] = useState(false);
   const [autoWatcherActive, setAutoWatcherActive] = useState(false);
+  const [autoPrintEnabled, setAutoPrintEnabled] = useState(true); // Automatically prints OK labels one-by-one as soon as found
 
   // Interactive Drive & Folder Browser State (Original App Feature)
   const [drives, setDrives] = useState(["C:\\", "D:\\"]);
@@ -1059,7 +1060,7 @@ export default function App() {
     setSuccessMsg("Process Selection unlocked. You may change vehicle model or part number.");
   }
 
-  // SCAN FOLDER FOR OK & NG IMAGES (DOES NOT AUTO-PRINT)
+  // SCAN FOLDER FOR OK & NG IMAGES (AUTO-PRINTS ONE-BY-ONE IF AUTOPRINT ACTIVE)
   function scanInspectionFolder(pathOverride) {
     const targetPath = pathOverride || selectedFolder;
     if (!targetPath) {
@@ -1081,7 +1082,7 @@ export default function App() {
         part_name: specs.partName !== "--" ? specs.partName : "",
         alc_code: specs.targetAlcCode !== "--" ? specs.targetAlcCode : "",
         sl_no: specs.slNo !== "--" ? specs.slNo : "",
-        autoPrint: false, // NEVER auto-print on folder scan!
+        autoPrint: autoPrintEnabled,
         printedBy: currentUser?.username || "operator",
       }),
     })
@@ -1093,18 +1094,49 @@ export default function App() {
           return;
         }
 
-        setOkImages(data.okFiles || []);
+        const okFiles = data.okFiles || [];
+        setOkImages(okFiles);
         setNgImages(data.ngFiles || []);
 
         setCounters((prev) => ({
           ...prev,
           total_ok: data.total_ok || prev.total_ok,
           total_ng: data.total_ng || prev.total_ng,
+          total_labels_today: autoPrintEnabled ? prev.total_labels_today + okFiles.length : prev.total_labels_today,
         }));
 
-        const okCount = data.okFiles?.length || 0;
+        const okCount = okFiles.length;
         const ngCount = data.ngFiles?.length || 0;
-        setSuccessMsg(`Folder Scanned: Found ${okCount} OK Images and ${ngCount} Defect (NG) Images. Click 'Print Label' to print.`);
+
+        if (autoPrintEnabled && okCount > 0) {
+          setSuccessMsg(`⚡ Auto-Print Active: Found ${okCount} OK Images. 100x30 labels auto-printed one-by-one!`);
+          setPrintFeedback(`⚡ Auto-Printing ${okCount} OK labels one-by-one with unique QR codes...`);
+
+          const labelsToPrint = okFiles.map((f, idx) => {
+            const pieceSlNo = f.label?.sl_no || f.defaultSlNo || String(idx + 1).padStart(4, "0");
+            const pieceComposite = f.label?.composite_code || computeCompositeCode({
+              prefix: "",
+              part_no: specs.motherPartNo !== "--" ? specs.motherPartNo : (selectedChildPart || ""),
+              sl_no: pieceSlNo,
+              model_no: selectedModel || "",
+              alc_code: specs.targetAlcCode !== "--" ? specs.targetAlcCode : "",
+            });
+            return {
+              sl_no: pieceSlNo,
+              model_no: f.label?.model_no || selectedModel || "--",
+              part_no: f.label?.part_no || (specs.motherPartNo !== "--" ? specs.motherPartNo : "--"),
+              part_name: f.label?.part_name || selectedMotherPart || "",
+              alc_code: f.label?.alc_code || (specs.targetAlcCode !== "--" ? specs.targetAlcCode : ""),
+              composite_code: pieceComposite,
+              batch_code: f.label?.batch_code || (specs.batchCode !== "--" ? specs.batchCode : ""),
+              qr_url: f.label?.qr_url || "",
+            };
+          });
+
+          triggerMultiLabel100x30Print(labelsToPrint);
+        } else {
+          setSuccessMsg(`Folder Scanned: Found ${okCount} OK Images and ${ngCount} Defect (NG) Images.`);
+        }
       })
       .catch((err) => {
         setIsScanning(false);
@@ -1284,6 +1316,7 @@ export default function App() {
                     status: "OK",
                     scannedAt: latest.detectedAt,
                     label: latest.label,
+                    printed: true,
                   };
                   setOkImages((prev) => [newImg, ...prev]);
                   setCounters((prev) => ({
@@ -1291,7 +1324,10 @@ export default function App() {
                     total_ok: prev.total_ok + 1,
                     total_labels_today: prev.total_labels_today + 1,
                   }));
-                  setPrintFeedback(`✓ Camera Drop Detected: Part OK! 100x30 Barcode Label Generated.`);
+                  setPrintFeedback(`⚡ Auto-Printed OK Part: ${latest.fileName} (SL NO: ${latest.label?.sl_no || "0001"})`);
+                  if (autoPrintEnabled && latest.label) {
+                    trigger100x30Print(latest.label);
+                  }
                 } else {
                   const newImg = {
                     name: latest.fileName,
@@ -1313,7 +1349,7 @@ export default function App() {
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [autoWatcherActive, activeTab, okImages, ngImages]);
+  }, [autoWatcherActive, activeTab, okImages, ngImages, autoPrintEnabled]);
 
   // HELPER: BUILD RAW 100x30 INDUSTRIAL SVG WITH STRICT NON-COLLIDING GEOMETRY
   function build100x30SvgString({
@@ -1527,6 +1563,134 @@ export default function App() {
         } catch (e) {}
       }, 3000);
     }, 150);
+  }
+
+  // TRIGGER MULTI-LABEL BATCH PRINT (Continuous 100x30mm thermal pages, 1 per piece)
+  async function triggerMultiLabel100x30Print(labels) {
+    if (!labels || labels.length === 0) return;
+
+    const valid = labels.filter((l) => l && (l.sl_no || l.part_no || l.composite_code));
+    if (valid.length === 0) return;
+
+    const svgs = [];
+    for (const lbl of valid) {
+      const sl_no = lbl.sl_no || "";
+      const model_no = lbl.model_no || "";
+      const part_no = lbl.part_no || lbl.sub_part_no || "";
+      const part_name = lbl.part_name || "";
+      const alc_code = lbl.alc_code || "";
+      const batch_code = lbl.batch_code || alc_code || "";
+      const composite_code =
+        lbl.composite_code ||
+        computeCompositeCode({
+          prefix: "",
+          part_no,
+          sl_no,
+          model_no,
+          alc_code,
+        });
+
+      let qrSrc = lbl.qr_data_url || lbl.qr_url || "";
+      if (!qrSrc && composite_code) {
+        try {
+          qrSrc = await QRCode.toDataURL(composite_code, { width: 350, margin: 1 });
+        } catch (e) {}
+      }
+
+      const svgHtml = build100x30SvgString({
+        sl_no,
+        model_no,
+        part_no,
+        part_name,
+        alc_code,
+        batch_code,
+        composite_code,
+        qrSrc,
+      });
+      svgs.push(svgHtml);
+    }
+
+    const existing = document.getElementById("hsi-thermal-print-frame");
+    if (existing) {
+      try { document.body.removeChild(existing); } catch (e) {}
+    }
+
+    const printFrame = document.createElement("iframe");
+    printFrame.id = "hsi-thermal-print-frame";
+    printFrame.style.position = "fixed";
+    printFrame.style.left = "0px";
+    printFrame.style.top = "0px";
+    printFrame.style.width = "100mm";
+    printFrame.style.height = "30mm";
+    printFrame.style.border = "none";
+    printFrame.style.zIndex = "-9999";
+    printFrame.style.opacity = "0.01";
+    printFrame.style.pointerEvents = "none";
+    document.body.appendChild(printFrame);
+
+    const doc = printFrame.contentWindow.document;
+    doc.open();
+    doc.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Batch_100x30_Labels</title>
+  <style>
+    @page {
+      size: 100mm 30mm;
+      margin: 0;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100mm !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+    }
+    .label-page {
+      width: 100mm !important;
+      height: 30mm !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      overflow: hidden !important;
+      display: block !important;
+    }
+    .label-page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
+    svg {
+      width: 100mm !important;
+      height: 30mm !important;
+      display: block !important;
+    }
+  </style>
+</head>
+<body>
+  ${svgs.map((s) => `<div class="label-page">${s}</div>`).join("")}
+</body>
+</html>`);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        printFrame.contentWindow.focus();
+        printFrame.contentWindow.print();
+      } catch (err) {
+        console.error("Multi-print frame invocation error:", err);
+      }
+      setTimeout(() => {
+        try {
+          if (printFrame && printFrame.parentNode) {
+            document.body.removeChild(printFrame);
+          }
+        } catch (e) {}
+      }, 5000);
+    }, 250);
   }
 
   // OPEN CLEAN POPUP PRINT PREVIEW (FOOLPROOF FALLBACK)
@@ -2481,6 +2645,16 @@ export default function App() {
 
                 <div className="status-controls">
                   <button
+                    type="button"
+                    className={`btn-autoprint-toggle ${autoPrintEnabled ? "active" : ""}`}
+                    onClick={() => setAutoPrintEnabled(!autoPrintEnabled)}
+                    title={autoPrintEnabled ? "Auto-Print is ON: OK images print automatically one-by-one" : "Auto-Print is OFF: manual print only"}
+                    id="btn-autoprint-toggle"
+                  >
+                    <Zap size={14} className={autoPrintEnabled ? "text-amber" : ""} />
+                    <span>{autoPrintEnabled ? "⚡ Auto-Print: ON" : "Auto-Print: OFF"}</span>
+                  </button>
+                  <button
                     className={`btn-watcher-toggle ${autoWatcherActive ? "active" : ""}`}
                     onClick={() => setAutoWatcherActive(!autoWatcherActive)}
                     id="btn-watcher-toggle"
@@ -2770,7 +2944,9 @@ export default function App() {
                   <div>
                     <h3>OK Images (Approved)</h3>
                     <span className="banner-hint" style={{ fontSize: "11px", color: "#a7f3d0", display: "block" }}>
-                      Vision Passed. Labels print ONLY when you click "Print Label" below.
+                      {autoPrintEnabled
+                        ? "⚡ Auto-Print ACTIVE: Labels print one-by-one automatically for each verified OK part."
+                        : "Manual Print Mode: Vision Passed. Labels print when you click 'Print Label' below."}
                     </span>
                   </div>
                 </div>

@@ -4770,6 +4770,34 @@ body {
   white-space: nowrap;
 }
 
+/* Auto-Print Station Switch */
+.btn-autoprint-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+}
+
+.btn-autoprint-toggle.active {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  border-color: #047857;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+}
+
+.btn-autoprint-toggle:hover {
+  transform: translateY(-1px);
+}
+
+
 
 
 
