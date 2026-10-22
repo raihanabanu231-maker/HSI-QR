@@ -5,21 +5,83 @@ const path = require("path");
 const os = require("os");
 const xlsx = require("xlsx");
 
-if (!process.env.DATABASE_URL) {
-  console.error("Missing DATABASE_URL in .env — paste your Neon connection string there.");
+const isMySQL = process.env.DB_TYPE === "mysql" || Boolean(process.env.MYSQL_HOST);
+
+let pool;
+
+if (isMySQL) {
+  let mysql;
+  try {
+    mysql = require("mysql2/promise");
+  } catch (e) {
+    console.error("mysql2 package not found. Run 'npm install mysql2' in backend.");
+  }
+
+  const mysqlPool = mysql
+    ? mysql.createPool({
+        host: process.env.MYSQL_HOST || "localhost",
+        port: Number(process.env.MYSQL_PORT) || 3306,
+        user: process.env.MYSQL_USER || "root",
+        password: process.env.MYSQL_PASSWORD || "",
+        database: process.env.MYSQL_DATABASE || "hsi_qr_db",
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+        decimalNumbers: true,
+      })
+    : null;
+
+  pool = {
+    async query(sqlText, params = []) {
+      if (!mysqlPool) throw new Error("MySQL pool not initialized");
+
+      // Convert Postgres placeholders ($1, $2, ...) to MySQL (?)
+      let mysqlSql = sqlText.replace(/\$\d+/g, "?");
+
+      // Strip Postgres cast types (::int, ::text, ::date, etc.)
+      mysqlSql = mysqlSql.replace(/::(int|text|date|integer|varchar)/gi, "");
+
+      // Handle RETURNING * in INSERT statements
+      const isInsert = /^\s*INSERT\s+INTO/i.test(mysqlSql);
+      const hasReturning = /RETURNING\s+\*/i.test(mysqlSql);
+      if (hasReturning) {
+        mysqlSql = mysqlSql.replace(/RETURNING\s+\*/i, "");
+      }
+
+      const [res] = await mysqlPool.query(mysqlSql, params);
+
+      if (isInsert && hasReturning && res.insertId) {
+        const tableNameMatch = mysqlSql.match(/INSERT\s+INTO\s+([a-zA-Z0-9_]+)/i);
+        if (tableNameMatch) {
+          const tableName = tableNameMatch[1];
+          const [insertedRows] = await mysqlPool.query(`SELECT * FROM ${tableName} WHERE id = ?`, [res.insertId]);
+          return { rows: insertedRows, rowCount: 1 };
+        }
+      }
+
+      if (Array.isArray(res)) {
+        return { rows: res, rowCount: res.length };
+      }
+      return { rows: [], rowCount: res.affectedRows || 0, insertId: res.insertId };
+    },
+    on() {},
+  };
+  console.log(`Connected to MySQL Server (${process.env.MYSQL_HOST || "localhost"}:${process.env.MYSQL_PORT || 3306}/${process.env.MYSQL_DATABASE || "hsi_qr_db"})`);
+} else {
+  if (!process.env.DATABASE_URL) {
+    console.error("Missing DATABASE_URL in .env — paste your Neon connection string there.");
+  }
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 30000,
+  });
+  pool.on("error", (err) => {
+    console.warn("Neon pool idle connection reset:", err.message);
+  });
 }
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 30000,
-});
-
-pool.on("error", (err) => {
-  console.warn("Neon pool idle connection reset:", err.message);
-});
 
 // Locate default master Excel file
 function getMasterExcelPath() {
@@ -32,6 +94,93 @@ function getMasterExcelPath() {
 }
 
 async function initDb() {
+  if (isMySQL) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS master_parts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        sl_no VARCHAR(100),
+        model_no VARCHAR(150) NOT NULL,
+        part_name VARCHAR(255) NOT NULL DEFAULT '',
+        part_no VARCHAR(150) NOT NULL,
+        sub_part_no VARCHAR(150) NOT NULL,
+        alc_code VARCHAR(100) DEFAULT '',
+        remarks TEXT,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        folder_name VARCHAR(255) NOT NULL,
+        folder_path VARCHAR(500) NOT NULL,
+        file_name VARCHAR(255) NOT NULL,
+        file_path TEXT,
+        status VARCHAR(20) NOT NULL,
+        model_no VARCHAR(150),
+        part_no VARCHAR(150),
+        sub_part_no VARCHAR(150),
+        alc_code VARCHAR(100),
+        operator VARCHAR(100) DEFAULT 'operator',
+        shift VARCHAR(50) DEFAULT 'Shift 1',
+        trace_number VARCHAR(100),
+        pressure VARCHAR(50) DEFAULT '0.850',
+        pack_qty VARCHAR(50) DEFAULT '1 / 1',
+        remark TEXT,
+        printed TINYINT(1) NOT NULL DEFAULT 0,
+        sl_no VARCHAR(100),
+        composite_code VARCHAR(255),
+        scanned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        printed_at DATETIME NULL
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS label_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        sl_no VARCHAR(100),
+        model_no VARCHAR(150),
+        part_no VARCHAR(150),
+        sub_part_no VARCHAR(150),
+        part_name VARCHAR(255),
+        alc_code VARCHAR(100),
+        composite_code VARCHAR(255),
+        batch_code VARCHAR(100),
+        qr_file VARCHAR(255),
+        printed_by VARCHAR(100) DEFAULT 'operator',
+        printed TINYINT(1) DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS system_users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL DEFAULT 'Pass@123',
+        full_name VARCHAR(255) NOT NULL DEFAULT '',
+        role VARCHAR(50) NOT NULL DEFAULT 'OPERATOR',
+        line_assigned VARCHAR(100) DEFAULT 'Line 2',
+        shift_assigned VARCHAR(100) DEFAULT 'Shift 1',
+        status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_login DATETIME NULL
+      )
+    `);
+    try {
+      const { rows: uRows } = await pool.query("SELECT COUNT(*) as count FROM system_users");
+      const count = Number(uRows[0]?.count || 0);
+      if (count === 0) {
+        await pool.query(`
+          INSERT IGNORE INTO system_users (username, password, full_name, role, line_assigned, shift_assigned, status)
+          VALUES 
+            ('admin', 'Admin@123', 'System Administrator', 'ADMIN', 'All Lines', 'All Shifts', 'ACTIVE'),
+            ('operator', 'Operator@123', 'Line 2 Operator', 'OPERATOR', 'Line 2', 'Shift 1', 'ACTIVE'),
+            ('supervisor', 'Super@123', 'Line Supervisor', 'SUPERVISOR', 'Line 2', 'Shift 2', 'ACTIVE'),
+            ('quality', 'Quality@123', 'Quality Assurance Inspector', 'QUALITY_INSPECTOR', 'Line 1', 'Shift 1', 'ACTIVE')
+        `);
+      }
+    } catch (e) {}
+    return;
+  }
+
   // 1. Master Parts Table (Uploaded by Master Admin)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS master_parts (
