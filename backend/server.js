@@ -553,36 +553,36 @@ app.get("/api/labels/100x30/svg", async (req, res) => {
 
   <!-- COL 1: SL NO -->
   <g transform="translate(78.3, 120) rotate(90)">
-    <text x="-92" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="11" font-weight="bold" letter-spacing="0.4" fill="#000000">SL NO</text>
-    <text x="92" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(sl_no).length > 6 ? 14.5 : 18}" font-weight="900" letter-spacing="0.4" fill="#000000" ${String(sl_no).length > 7 ? 'textLength="86" lengthAdjust="spacingAndGlyphs"' : ''}>${sl_no || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">SL NO</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(sl_no).length > 6 ? 26 : 34}" font-weight="900" letter-spacing="0.5" fill="#000000" ${String(sl_no).length > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : ''}>${sl_no || ""}</text>
   </g>
 
   <!-- COL 2: MODEL -->
   <g transform="translate(204.9, 120) rotate(90)">
-    <text x="-92" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="11" font-weight="bold" letter-spacing="0.4" fill="#000000">MODEL</text>
-    <text x="92" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(model_no || "").length > 9 ? 10.5 : String(model_no || "").length > 6 ? 12 : 14.5}" font-weight="900" letter-spacing="0.3" fill="#000000" ${String(model_no || "").length > 7 ? 'textLength="86" lengthAdjust="spacingAndGlyphs"' : ''}>${model_no || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">MODEL</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(model_no || "").length > 9 ? 21 : String(model_no || "").length > 6 ? 26 : 32}" font-weight="900" letter-spacing="0.4" fill="#000000" ${String(model_no || "").length > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : ''}>${model_no || ""}</text>
   </g>
 
   <!-- COL 3: PART NO -->
   <g transform="translate(331.5, 120) rotate(90)">
-    <text x="-92" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="11" font-weight="bold" letter-spacing="0.4" fill="#000000">PART NO</text>
-    <text x="92" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectivePart || "").length > 12 ? 9.5 : String(effectivePart || "").length > 9 ? 10.5 : String(effectivePart || "").length > 6 ? 12 : 14.5}" font-weight="900" letter-spacing="0.2" fill="#000000" ${String(effectivePart || "").length > 7 ? 'textLength="86" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePart || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">PART NO</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectivePart || "").length > 12 ? 19 : String(effectivePart || "").length > 9 ? 21 : String(effectivePart || "").length > 6 ? 25 : 30}" font-weight="900" letter-spacing="0.3" fill="#000000" ${String(effectivePart || "").length > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePart || ""}</text>
   </g>
 
   <!-- COL 4: PART NAME -->
   <g transform="translate(458.1, 120) rotate(90)">
-    <text x="-92" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="11" font-weight="bold" letter-spacing="0.4" fill="#000000">PART NAME</text>
-    <text x="92" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectivePartName || "").length > 12 ? 9.5 : String(effectivePartName || "").length > 9 ? 10.5 : String(effectivePartName || "").length > 6 ? 12 : 14.5}" font-weight="900" letter-spacing="0.1" fill="#000000" ${String(effectivePartName || "").length > 7 ? 'textLength="86" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePartName || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">PART NAME</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectivePartName || "").length > 12 ? 19 : String(effectivePartName || "").length > 9 ? 21 : String(effectivePartName || "").length > 6 ? 25 : 30}" font-weight="900" letter-spacing="0.2" fill="#000000" ${String(effectivePartName || "").length > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePartName || ""}</text>
   </g>
 
   <!-- COL 5: ALC CODE -->
   <g transform="translate(584.7, 120) rotate(90)">
-    <text x="-92" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="11" font-weight="bold" letter-spacing="0.4" fill="#000000">ALC CODE</text>
-    <text x="92" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(alc_code || "").length > 6 ? 14.5 : 18}" font-weight="900" letter-spacing="0.5" fill="#000000" ${String(alc_code || "").length > 7 ? 'textLength="86" lengthAdjust="spacingAndGlyphs"' : ''}>${alc_code || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">ALC CODE</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(alc_code || "").length > 6 ? 26 : 34}" font-weight="900" letter-spacing="0.5" fill="#000000" ${String(alc_code || "").length > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : ''}>${alc_code || ""}</text>
   </g>
 
   <!-- BOTTOM COMPOSITE BAR -->
-  <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="23" font-weight="900" letter-spacing="0.8" fill="#000000" ${(compositeCode || "").length > 20 ? 'textLength="600" lengthAdjust="spacingAndGlyphs"' : ''}>${compositeCode || (effectivePart ? effectivePart + (sl_no ? " " + sl_no : "") : "--")}</text>
+  <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="30" font-weight="900" letter-spacing="0.8" fill="#000000" ${(compositeCode || "").length > 20 ? 'textLength="600" lengthAdjust="spacingAndGlyphs"' : ''}>${compositeCode || (effectivePart ? effectivePart + (sl_no ? " " + sl_no : "") : "--")}</text>
 
   <!-- 2D QR CODE (PURE VECTOR SVG PATH - CRISP AT ANY DPI) -->
   <rect x="714" y="22" width="198" height="198" fill="#ffffff" />
@@ -591,7 +591,7 @@ app.get("/api/labels/100x30/svg", async (req, res) => {
   </g>
 
   <!-- BATCH CODE -->
-  <text x="816.5" y="262" text-anchor="middle" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="32" font-weight="900" letter-spacing="1" fill="#000000">${batch_code || alc_code || ""}</text>
+  <text x="816.5" y="262" text-anchor="middle" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="38" font-weight="900" letter-spacing="1" fill="#000000">${batch_code || alc_code || ""}</text>
 </svg>`;
 
     res.setHeader("Content-Type", "image/svg+xml");

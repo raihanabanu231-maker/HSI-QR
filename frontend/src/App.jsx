@@ -87,6 +87,15 @@ function HsiLogo({ size = "default", showText = true }) {
   );
 }
 
+// Dynamic Label Print Size Presets
+const LABEL_SIZE_DIMS = {
+  "100x30": { w: "100mm", h: "30mm", label: "Standard 100x30 mm (100%)" },
+  "140x42": { w: "140mm", h: "42mm", label: "Medium 140x42 mm (140%)" },
+  "180x54": { w: "180mm", h: "54mm", label: "Large 180x54 mm (180%)" },
+  "200x60": { w: "200mm", h: "60mm", label: "Extra Large 200x60 mm (200%)" },
+  "a4_fit": { w: "190mm", h: "57mm", label: "Fit Full A4 Page Width (190x57 mm)" },
+};
+
 // Dynamic Barcode Composite Generator: PartNo + SlNo + Model + ALC (pure real data)
 function computeCompositeCode({ prefix = "", part_no = "", sl_no = "", model_no = "", alc_code = "", motherPartNo = "", targetAlcCode = "" }) {
   const p = (prefix || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
@@ -459,6 +468,9 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [autoWatcherActive, setAutoWatcherActive] = useState(false);
   const [autoPrintEnabled, setAutoPrintEnabled] = useState(true); // Automatically prints OK labels one-by-one as soon as found
+  const [labelPrintSize, setLabelPrintSize] = useState(() => {
+    return localStorage.getItem("hsi_label_print_size") || "100x30";
+  });
 
   // Interactive Drive & Folder Browser State (Original App Feature)
   const [drives, setDrives] = useState(["C:\\", "D:\\"]);
@@ -1564,13 +1576,13 @@ export default function App() {
   }) {
     const getValAttr = (val) => {
       const len = String(val || "").length;
-      let fs = "9.5";
-      let ls = "0";
-      if (len <= 4) { fs = "18"; ls = "0.5"; }
-      else if (len <= 7) { fs = "14.5"; ls = "0.4"; }
-      else if (len <= 9) { fs = "12"; ls = "0.2"; }
-      else if (len <= 12) { fs = "10.5"; ls = "0.1"; }
-      const tl = len > 7 ? 'textLength="86" lengthAdjust="spacingAndGlyphs"' : "";
+      let fs = "21";
+      let ls = "0.2";
+      if (len <= 4) { fs = "34"; ls = "0.5"; }
+      else if (len <= 7) { fs = "28"; ls = "0.3"; }
+      else if (len <= 9) { fs = "24"; ls = "0.2"; }
+      else if (len <= 12) { fs = "21"; ls = "0.1"; }
+      const tl = len > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : "";
       return `font-size="${fs}" letter-spacing="${ls}" ${tl}`;
     };
 
@@ -1593,36 +1605,36 @@ export default function App() {
 
   <!-- COL 1: SL NO -->
   <g transform="translate(78.3, 120) rotate(90)">
-    <text x="-92" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="11" font-weight="bold" letter-spacing="0.4" fill="#000000">SL NO</text>
-    <text x="92" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(sl_no)} font-weight="900" fill="#000000">${sl_no || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">SL NO</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(sl_no)} font-weight="900" fill="#000000">${sl_no || ""}</text>
   </g>
 
   <!-- COL 2: MODEL -->
   <g transform="translate(204.9, 120) rotate(90)">
-    <text x="-92" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="11" font-weight="bold" letter-spacing="0.4" fill="#000000">MODEL</text>
-    <text x="92" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(model_no)} font-weight="900" fill="#000000">${model_no || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">MODEL</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(model_no)} font-weight="900" fill="#000000">${model_no || ""}</text>
   </g>
 
   <!-- COL 3: PART NO -->
   <g transform="translate(331.5, 120) rotate(90)">
-    <text x="-92" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="11" font-weight="bold" letter-spacing="0.4" fill="#000000">PART NO</text>
-    <text x="92" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(part_no)} font-weight="900" fill="#000000">${part_no || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">PART NO</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(part_no)} font-weight="900" fill="#000000">${part_no || ""}</text>
   </g>
 
   <!-- COL 4: PART NAME -->
   <g transform="translate(458.1, 120) rotate(90)">
-    <text x="-92" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="11" font-weight="bold" letter-spacing="0.4" fill="#000000">PART NAME</text>
-    <text x="92" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(part_name)} font-weight="900" fill="#000000">${part_name || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">PART NAME</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(part_name)} font-weight="900" fill="#000000">${part_name || ""}</text>
   </g>
 
   <!-- COL 5: ALC CODE -->
   <g transform="translate(584.7, 120) rotate(90)">
-    <text x="-92" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="11" font-weight="bold" letter-spacing="0.4" fill="#000000">ALC CODE</text>
-    <text x="92" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(alc_code)} font-weight="900" fill="#000000">${alc_code || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">ALC CODE</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(alc_code)} font-weight="900" fill="#000000">${alc_code || ""}</text>
   </g>
 
   <!-- BOTTOM COMPOSITE BAR -->
-  <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="23" font-weight="900" letter-spacing="0.8" fill="#000000" ${compAttr}>${effectiveCode}</text>
+  <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="30" font-weight="900" letter-spacing="0.8" fill="#000000" ${compAttr}>${effectiveCode}</text>
 
   <!-- 2D QR CODE (PURE VECTOR SVG PATH - CRISP AT ANY DPI) -->
   <rect x="714" y="22" width="198" height="198" fill="#ffffff" />
@@ -1633,7 +1645,7 @@ export default function App() {
   <image href="${qrSrc}" xlink:href="${qrSrc}" x="714" y="22" width="198" height="198" preserveAspectRatio="xMidYMid meet" />` : "")}
 
   <!-- BATCH CODE -->
-  <text x="816.5" y="262" text-anchor="middle" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="32" font-weight="900" letter-spacing="1" fill="#000000">${batch_code || ""}</text>
+  <text x="816.5" y="262" text-anchor="middle" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="38" font-weight="900" letter-spacing="1" fill="#000000">${batch_code || ""}</text>
 </svg>
 `;
   }
@@ -1696,14 +1708,16 @@ export default function App() {
       try { document.body.removeChild(existing); } catch (e) {}
     }
 
+    const printDim = LABEL_SIZE_DIMS[labelPrintSize] || { w: "100mm", h: "30mm" };
+
     // In-viewport (opacity: 0.01) frame so Chromium rasterizes every SVG node without blank print
     const printFrame = document.createElement("iframe");
     printFrame.id = "hsi-thermal-print-frame";
     printFrame.style.position = "fixed";
     printFrame.style.left = "0px";
     printFrame.style.top = "0px";
-    printFrame.style.width = "100mm";
-    printFrame.style.height = "30mm";
+    printFrame.style.width = printDim.w;
+    printFrame.style.height = printDim.h;
     printFrame.style.border = "none";
     printFrame.style.zIndex = "-9999";
     printFrame.style.opacity = "0.01";
@@ -1719,7 +1733,7 @@ export default function App() {
   <title>Label_${part_no || "100x30"}</title>
   <style>
     @page {
-      size: 100mm 30mm;
+      size: ${printDim.w} ${printDim.h};
       margin: 0;
     }
     * {
@@ -1728,16 +1742,16 @@ export default function App() {
       padding: 0;
     }
     html, body {
-      width: 100mm !important;
-      height: 30mm !important;
+      width: ${printDim.w} !important;
+      height: ${printDim.h} !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden !important;
       background: #ffffff !important;
     }
     svg {
-      width: 100mm !important;
-      height: 30mm !important;
+      width: ${printDim.w} !important;
+      height: ${printDim.h} !important;
       display: block !important;
     }
   </style>
@@ -1815,13 +1829,15 @@ export default function App() {
       try { document.body.removeChild(existing); } catch (e) {}
     }
 
+    const printDim = LABEL_SIZE_DIMS[labelPrintSize] || { w: "100mm", h: "30mm" };
+
     const printFrame = document.createElement("iframe");
     printFrame.id = "hsi-thermal-print-frame";
     printFrame.style.position = "fixed";
     printFrame.style.left = "0px";
     printFrame.style.top = "0px";
-    printFrame.style.width = "100mm";
-    printFrame.style.height = "30mm";
+    printFrame.style.width = printDim.w;
+    printFrame.style.height = printDim.h;
     printFrame.style.border = "none";
     printFrame.style.zIndex = "-9999";
     printFrame.style.opacity = "0.01";
@@ -1837,7 +1853,7 @@ export default function App() {
   <title>Batch_100x30_Labels</title>
   <style>
     @page {
-      size: 100mm 30mm;
+      size: ${printDim.w} ${printDim.h};
       margin: 0;
     }
     * {
@@ -1846,14 +1862,14 @@ export default function App() {
       padding: 0;
     }
     html, body {
-      width: 100mm !important;
+      width: ${printDim.w} !important;
       margin: 0 !important;
       padding: 0 !important;
       background: #ffffff !important;
     }
     .label-page {
-      width: 100mm !important;
-      height: 30mm !important;
+      width: ${printDim.w} !important;
+      height: ${printDim.h} !important;
       page-break-after: always !important;
       break-after: page !important;
       overflow: hidden !important;
@@ -1864,8 +1880,8 @@ export default function App() {
       break-after: auto !important;
     }
     svg {
-      width: 100mm !important;
-      height: 30mm !important;
+      width: ${printDim.w} !important;
+      height: ${printDim.h} !important;
       display: block !important;
     }
   </style>
@@ -2963,6 +2979,50 @@ export default function App() {
                 <span className="status-label">
                   Watcher: <strong>{autoWatcherActive ? "LIVE ON" : "STANDBY"}</strong>
                 </span>
+              </div>
+
+              {/* Dynamic Label Print Size Selector */}
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: "#f8fafc",
+                  padding: "5px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
+                }}
+              >
+                <Printer size={14} className="text-blue-600" />
+                <span style={{ fontSize: "12px", fontWeight: 700, color: "#334155" }}>Print Size:</span>
+                <select
+                  value={labelPrintSize}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setLabelPrintSize(val);
+                    localStorage.setItem("hsi_label_print_size", val);
+                    const optText = e.target.options[e.target.selectedIndex].text;
+                    setSuccessMsg(`✓ Label Print Size set to: ${optText}`);
+                  }}
+                  id="select-label-print-size"
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    border: "1px solid #94a3b8",
+                    background: "#ffffff",
+                    color: "#0f172a",
+                    cursor: "pointer",
+                  }}
+                  title="Select label scale: 100x30 thermal roll, or larger 140x42 / 200x60 for A4 printer"
+                >
+                  <option value="100x30">Standard 100x30 mm (100%)</option>
+                  <option value="140x42">Medium 140x42 mm (140%)</option>
+                  <option value="180x54">Large 180x54 mm (180%)</option>
+                  <option value="200x60">Extra Large 200x60 mm (200%)</option>
+                  <option value="a4_fit">Fit Full A4 Page Width (190x57 mm)</option>
+                </select>
               </div>
             </div>
 
@@ -4983,16 +5043,16 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
 
   const getValStyle = (val) => {
     const len = String(val || "").length;
-    let fs = "9.5";
-    let ls = "0";
-    if (len <= 4) { fs = "18"; ls = "0.5"; }
-    else if (len <= 7) { fs = "14.5"; ls = "0.4"; }
-    else if (len <= 9) { fs = "12"; ls = "0.2"; }
-    else if (len <= 12) { fs = "10.5"; ls = "0.1"; }
+    let fs = "21";
+    let ls = "0.2";
+    if (len <= 4) { fs = "34"; ls = "0.5"; }
+    else if (len <= 7) { fs = "28"; ls = "0.3"; }
+    else if (len <= 9) { fs = "24"; ls = "0.2"; }
+    else if (len <= 12) { fs = "21"; ls = "0.1"; }
     return {
       fontSize: fs,
       letterSpacing: ls,
-      textLength: len > 7 ? "86" : undefined,
+      textLength: len > 7 ? "114" : undefined,
       lengthAdjust: len > 7 ? "spacingAndGlyphs" : undefined,
     };
   };
@@ -5055,20 +5115,20 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
         {/* ================= COLUMN 1: SL NO ================= */}
         <g transform="translate(78.3, 120) rotate(90)">
           <text
-            x="-92"
+            x="-95"
             y="0"
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="11"
-            fontWeight="bold"
-            letterSpacing="0.4"
+            fontSize="20"
+            fontWeight="900"
+            letterSpacing="0.6"
             fill="#000000"
           >
             SL NO
           </text>
           <text
-            x="92"
+            x="95"
             y="0"
             textAnchor="end"
             dominantBaseline="central"
@@ -5087,20 +5147,20 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
         {/* ================= COLUMN 2: MODEL ================= */}
         <g transform="translate(204.9, 120) rotate(90)">
           <text
-            x="-92"
+            x="-95"
             y="0"
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="11"
-            fontWeight="bold"
-            letterSpacing="0.4"
+            fontSize="20"
+            fontWeight="900"
+            letterSpacing="0.6"
             fill="#000000"
           >
             MODEL
           </text>
           <text
-            x="92"
+            x="95"
             y="0"
             textAnchor="end"
             dominantBaseline="central"
@@ -5119,20 +5179,20 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
         {/* ================= COLUMN 3: PART NO ================= */}
         <g transform="translate(331.5, 120) rotate(90)">
           <text
-            x="-92"
+            x="-95"
             y="0"
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="11"
-            fontWeight="bold"
-            letterSpacing="0.4"
+            fontSize="20"
+            fontWeight="900"
+            letterSpacing="0.6"
             fill="#000000"
           >
             PART NO
           </text>
           <text
-            x="92"
+            x="95"
             y="0"
             textAnchor="end"
             dominantBaseline="central"
@@ -5151,20 +5211,20 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
         {/* ================= COLUMN 4: PART NAME ================= */}
         <g transform="translate(458.1, 120) rotate(90)">
           <text
-            x="-92"
+            x="-95"
             y="0"
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="11"
-            fontWeight="bold"
-            letterSpacing="0.4"
+            fontSize="20"
+            fontWeight="900"
+            letterSpacing="0.6"
             fill="#000000"
           >
             PART NAME
           </text>
           <text
-            x="92"
+            x="95"
             y="0"
             textAnchor="end"
             dominantBaseline="central"
@@ -5183,20 +5243,20 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
         {/* ================= COLUMN 5: ALC CODE ================= */}
         <g transform="translate(584.7, 120) rotate(90)">
           <text
-            x="-92"
+            x="-95"
             y="0"
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="11"
-            fontWeight="bold"
-            letterSpacing="0.4"
+            fontSize="20"
+            fontWeight="900"
+            letterSpacing="0.6"
             fill="#000000"
           >
             ALC CODE
           </text>
           <text
-            x="92"
+            x="95"
             y="0"
             textAnchor="end"
             dominantBaseline="central"
@@ -5217,7 +5277,7 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
           x="28"
           y="262"
           fontFamily="'Arial', 'Helvetica', sans-serif"
-          fontSize="23"
+          fontSize="30"
           fontWeight="900"
           letterSpacing="0.8"
           fill="#000000"
