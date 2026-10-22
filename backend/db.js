@@ -38,14 +38,33 @@ if (isMySQL) {
       // Convert Postgres placeholders ($1, $2, ...) to MySQL (?)
       let mysqlSql = sqlText.replace(/\$\d+/g, "?");
 
+      // Convert date casting e.g. scanned_at::date -> DATE(scanned_at)
+      mysqlSql = mysqlSql.replace(/([a-zA-Z0-9_]+)::date/gi, "DATE($1)");
+
       // Strip Postgres cast types (::int, ::text, ::date, etc.)
       mysqlSql = mysqlSql.replace(/::(int|text|date|integer|varchar)/gi, "");
 
-      // Handle RETURNING * in INSERT statements
+      // Strip RESTART IDENTITY
+      mysqlSql = mysqlSql.replace(/RESTART\s+IDENTITY/gi, "");
+
+      // Handle RETURNING in statements
       const isInsert = /^\s*INSERT\s+INTO/i.test(mysqlSql);
-      const hasReturning = /RETURNING\s+\*/i.test(mysqlSql);
+      const isUpdate = /^\s*UPDATE\s+/i.test(mysqlSql);
+      const hasReturning = /RETURNING\s+([a-zA-Z0-9_, *]+)/i.test(mysqlSql);
       if (hasReturning) {
-        mysqlSql = mysqlSql.replace(/RETURNING\s+\*/i, "");
+        mysqlSql = mysqlSql.replace(/RETURNING\s+([a-zA-Z0-9_, *]+)/i, "");
+      }
+
+      // Handle multi-table TRUNCATE in MySQL: TRUNCATE TABLE logs, label_logs
+      if (/^\s*TRUNCATE\s+TABLE\s+([^;]+)/i.test(mysqlSql)) {
+        const match = mysqlSql.match(/^\s*TRUNCATE\s+TABLE\s+([^;]+)/i);
+        const tables = match[1].split(",").map((t) => t.trim());
+        if (tables.length > 1) {
+          for (const tbl of tables) {
+            await mysqlPool.query(`TRUNCATE TABLE ${tbl}`);
+          }
+          return { rows: [], rowCount: 0 };
+        }
       }
 
       const [res] = await mysqlPool.query(mysqlSql, params);
@@ -56,6 +75,16 @@ if (isMySQL) {
           const tableName = tableNameMatch[1];
           const [insertedRows] = await mysqlPool.query(`SELECT * FROM ${tableName} WHERE id = ?`, [res.insertId]);
           return { rows: insertedRows, rowCount: 1 };
+        }
+      }
+
+      if (isUpdate && hasReturning) {
+        const tableNameMatch = mysqlSql.match(/UPDATE\s+([a-zA-Z0-9_]+)/i);
+        if (tableNameMatch && params.length > 0) {
+          const tableName = tableNameMatch[1];
+          const id = params[0];
+          const [updatedRows] = await mysqlPool.query(`SELECT * FROM ${tableName} WHERE id = ?`, [id]);
+          return { rows: updatedRows, rowCount: updatedRows.length };
         }
       }
 
@@ -178,6 +207,11 @@ async function initDb() {
         `);
       }
     } catch (e) {}
+    try {
+      await seedDefaultMasterData();
+    } catch (e) {
+      console.warn("Could not seed default master data for MySQL:", e.message);
+    }
     return;
   }
 
@@ -315,8 +349,9 @@ async function seedDefaultMasterData() {
 
         let headerIdx = -1;
         for (let i = 0; i < Math.min(rawData.length, 10); i++) {
-          const rowStr = (rawData[i] || []).map((c) => String(c || "").toUpperCase()).join(" ");
-          if (rowStr.includes("PART") || rowStr.includes("MODEL")) {
+          const row = rawData[i] || [];
+          const rowStr = row.map((c) => String(c || "").toUpperCase()).join(" ");
+          if (row.length >= 3 && rowStr.includes("PART") && rowStr.includes("MODEL")) {
             headerIdx = i;
             break;
           }
