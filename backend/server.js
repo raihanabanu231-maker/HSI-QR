@@ -859,21 +859,6 @@ function ensureVirtualDrives() {
       fs.mkdirSync(d, { recursive: true });
     } catch (e) {}
   });
-
-  // Seed sample OK and NG parts into C:\Inspection\DropZone
-  const dropZone = path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "DropZone");
-  const sampleOk1 = path.join(dropZone, "HOSE_VISION_OK_01.png");
-  const sampleOk2 = path.join(dropZone, "HOSE_VISION_OK_02.png");
-  const sampleNg1 = path.join(dropZone, "HOSE_DEFECT_NG_01.png");
-  const png1x1 = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    "base64"
-  );
-  try {
-    if (!fs.existsSync(sampleOk1)) fs.writeFileSync(sampleOk1, png1x1);
-    if (!fs.existsSync(sampleOk2)) fs.writeFileSync(sampleOk2, png1x1);
-    if (!fs.existsSync(sampleNg1)) fs.writeFileSync(sampleNg1, png1x1);
-  } catch (e) {}
 }
 
 ensureVirtualDrives();

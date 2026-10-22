@@ -597,7 +597,7 @@ export default function App() {
   }
 
   function openFolder(targetPath) {
-    let p = targetPath || "C:\\Inspection\\DropZone";
+    let p = targetPath || "C:\\LPSPOST";
     if (p === "/" || p === "\\" || !isWindowsPath(p)) {
       p = "C:\\";
     }
