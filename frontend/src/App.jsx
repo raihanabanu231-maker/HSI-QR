@@ -1633,36 +1633,36 @@ export default function App() {
 
   <!-- COL 1: SL NO -->
   <g transform="translate(78.3, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">SL NO</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(sl_no).length > 4 ? 16 : 20}" font-weight="900" letter-spacing="0.4" fill="#000000">${sl_no || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="19" font-weight="900" letter-spacing="0.5" fill="#000000">SL NO</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(sl_no).length > 4 ? 22 : 28}" font-weight="900" letter-spacing="0.5" fill="#000000">${sl_no || ""}</text>
   </g>
 
   <!-- COL 2: MODEL -->
   <g transform="translate(204.9, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">MODEL</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectiveModel || '').length > 6 ? 15 : 18}" font-weight="900" letter-spacing="0.3" fill="#000000">${effectiveModel || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="19" font-weight="900" letter-spacing="0.5" fill="#000000">MODEL</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectiveModel || '').length > 6 ? 21 : 25}" font-weight="900" letter-spacing="0.4" fill="#000000">${effectiveModel || ""}</text>
   </g>
 
   <!-- COL 3: PART NO -->
   <g transform="translate(331.5, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">PART NO</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectivePart || '').length > 9 ? 14.5 : 16}" font-weight="900" letter-spacing="0.2" fill="#000000" ${String(effectivePart || '').length > 7 ? 'textLength="92" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePart || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="18" font-weight="900" letter-spacing="0.5" fill="#000000">PART NO</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectivePart || '').length > 10 ? 18 : 21}" font-weight="900" letter-spacing="0.3" fill="#000000" ${String(effectivePart || '').length > 7 ? 'textLength="98" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePart || ""}</text>
   </g>
 
   <!-- COL 4: PART NAME -->
   <g transform="translate(458.1, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">PART NAME</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.1" fill="#000000" ${String(effectivePartName || '').length > 7 ? 'textLength="90" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePartName || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="17" font-weight="900" letter-spacing="0.5" fill="#000000">PART NAME</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="17.5" font-weight="900" letter-spacing="0.2" fill="#000000" ${String(effectivePartName || '').length > 7 ? 'textLength="96" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePartName || ""}</text>
   </g>
 
   <!-- COL 5: ALC CODE -->
   <g transform="translate(584.7, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">ALC CODE</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.5" fill="#000000">${effectiveAlc || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="18" font-weight="900" letter-spacing="0.5" fill="#000000">ALC CODE</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="28" font-weight="900" letter-spacing="0.5" fill="#000000">${effectiveAlc || ""}</text>
   </g>
 
   <!-- BOTTOM COMPOSITE BAR -->
-  <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="24" font-weight="900" letter-spacing="0.8" fill="#000000" ${compAttr}>${effectiveCode}</text>
+  <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="29" font-weight="900" letter-spacing="0.8" fill="#000000" ${compAttr}>${effectiveCode}</text>
 
   <!-- 2D DATA MATRIX (PURE VECTOR SVG PATH - CRISP AT ANY DPI) -->
   <rect x="714" y="22" width="198" height="198" fill="#ffffff" />
@@ -1673,7 +1673,7 @@ export default function App() {
   <image href="${qrSrc}" xlink:href="${qrSrc}" x="714" y="22" width="198" height="198" preserveAspectRatio="xMidYMid meet" />` : "")}
 
   <!-- BATCH CODE -->
-  <text x="816.5" y="262" text-anchor="middle" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="32" font-weight="900" letter-spacing="1" fill="#000000">${batch_code || effectiveAlc || ""}</text>
+  <text x="816.5" y="262" text-anchor="middle" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="38" font-weight="900" letter-spacing="1" fill="#000000">${batch_code || effectiveAlc || ""}</text>
 </svg>
 `;
   }
@@ -1754,29 +1754,46 @@ export default function App() {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Label_${part_no || "100x30"}</title>
+  <title></title>
   <style>
     @page {
       size: ${printDim.w} ${printDim.h};
-      margin: 0;
+      margin: 0mm !important;
     }
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    html, body {
-      width: ${printDim.w} !important;
-      height: ${printDim.h} !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      overflow: hidden !important;
-      background: #ffffff !important;
-    }
-    svg {
-      width: ${printDim.w} !important;
-      height: ${printDim.h} !important;
-      display: block !important;
+    @page :first { margin: 0mm !important; }
+    @page :left { margin: 0mm !important; }
+    @page :right { margin: 0mm !important; }
+    @media print {
+      @page {
+        size: ${printDim.w} ${printDim.h} !important;
+        margin: 0mm !important;
+      }
+      *, *::before, *::after {
+        box-sizing: border-box !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      html, body {
+        width: ${printDim.w} !important;
+        height: ${printDim.h} !important;
+        max-width: ${printDim.w} !important;
+        max-height: ${printDim.h} !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        background: #ffffff !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      svg {
+        width: ${printDim.w} !important;
+        height: ${printDim.h} !important;
+        max-width: ${printDim.w} !important;
+        max-height: ${printDim.h} !important;
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
     }
   </style>
 </head>
@@ -1872,39 +1889,61 @@ export default function App() {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Batch_100x30_Labels</title>
+  <title></title>
   <style>
     @page {
       size: ${printDim.w} ${printDim.h};
-      margin: 0;
+      margin: 0mm !important;
     }
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    html, body {
-      width: ${printDim.w} !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      background: #ffffff !important;
-    }
-    .label-page {
-      width: ${printDim.w} !important;
-      height: ${printDim.h} !important;
-      page-break-after: always !important;
-      break-after: page !important;
-      overflow: hidden !important;
-      display: block !important;
-    }
-    .label-page:last-child {
-      page-break-after: auto !important;
-      break-after: auto !important;
-    }
-    svg {
-      width: ${printDim.w} !important;
-      height: ${printDim.h} !important;
-      display: block !important;
+    @page :first { margin: 0mm !important; }
+    @page :left { margin: 0mm !important; }
+    @page :right { margin: 0mm !important; }
+    @media print {
+      @page {
+        size: ${printDim.w} ${printDim.h} !important;
+        margin: 0mm !important;
+      }
+      *, *::before, *::after {
+        box-sizing: border-box !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      html, body {
+        width: ${printDim.w} !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .label-page {
+        width: ${printDim.w} !important;
+        height: ${printDim.h} !important;
+        max-width: ${printDim.w} !important;
+        max-height: ${printDim.h} !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        page-break-before: avoid !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        overflow: hidden !important;
+        display: block !important;
+      }
+      .label-page:last-child {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
+      svg {
+        width: ${printDim.w} !important;
+        height: ${printDim.h} !important;
+        max-width: ${printDim.w} !important;
+        max-height: ${printDim.h} !important;
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
     }
   </style>
 </head>
@@ -1970,9 +2009,10 @@ export default function App() {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Label_${part_no || "100x30"}</title>
+  <title></title>
   <style>
-    @page { size: 100mm 30mm; margin: 0; }
+    @page { size: 100mm 30mm; margin: 0mm !important; }
+    @page :first { margin: 0mm !important; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       width: 100%;
@@ -1985,7 +2025,13 @@ export default function App() {
       font-family: Arial, sans-serif;
     }
     .print-bar {
-      margin-bottom: 12px;
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .print-actions {
       display: flex;
       gap: 10px;
     }
@@ -1999,6 +2045,16 @@ export default function App() {
       border-radius: 6px;
       cursor: pointer;
     }
+    .thermal-tip {
+      background: #fef2f2;
+      border: 1px solid #f87171;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #991b1b;
+      text-align: center;
+    }
     .label-box {
       width: 100mm;
       height: 30mm;
@@ -2011,26 +2067,57 @@ export default function App() {
       display: block;
     }
     @media print {
+      @page {
+        size: 100mm 30mm !important;
+        margin: 0mm !important;
+      }
+      *, *::before, *::after {
+        box-sizing: border-box !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
       html, body {
         width: 100mm !important;
         height: 30mm !important;
+        max-width: 100mm !important;
+        max-height: 30mm !important;
         background: #ffffff !important;
         margin: 0 !important;
         padding: 0 !important;
+        overflow: hidden !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
       .print-bar { display: none !important; }
       .label-box {
         box-shadow: none !important;
         width: 100mm !important;
         height: 30mm !important;
+        max-width: 100mm !important;
+        max-height: 30mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      }
+      svg {
+        width: 100mm !important;
+        height: 30mm !important;
+        max-width: 100mm !important;
+        max-height: 30mm !important;
+        display: block !important;
       }
     }
   </style>
 </head>
 <body>
   <div class="print-bar">
-    <button class="btn-p" onclick="window.print()">🖨️ Print 100x30mm Label</button>
-    <button class="btn-p" style="background:#64748b;" onclick="window.close()">Close Window</button>
+    <div class="thermal-tip">
+      ⚠️ <b>Thermal Printer Setup:</b> In Chrome print dialog, set <b>Margins = None</b> and <b>UNCHECK "Headers and footers"</b>!
+    </div>
+    <div class="print-actions">
+      <button class="btn-p" onclick="window.print()">🖨️ Print 100x30mm Label</button>
+      <button class="btn-p" style="background:#64748b;" onclick="window.close()">Close Window</button>
+    </div>
   </div>
   <div class="label-box">
     ${svgHtml}
@@ -5134,7 +5221,7 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="13.5"
+            fontSize="19"
             fontWeight="900"
             letterSpacing="0.5"
             fill="#000000"
@@ -5147,9 +5234,9 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="end"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize={String(sl_no).length > 4 ? "16" : "20"}
+            fontSize={String(sl_no).length > 4 ? "22" : "28"}
             fontWeight="900"
-            letterSpacing="0.4"
+            letterSpacing="0.5"
             fill="#000000"
           >
             {sl_no || ""}
@@ -5164,7 +5251,7 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="13.5"
+            fontSize="19"
             fontWeight="900"
             letterSpacing="0.5"
             fill="#000000"
@@ -5177,9 +5264,9 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="end"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize={String(effectiveModel || "").length > 6 ? "15" : "18"}
+            fontSize={String(effectiveModel || "").length > 6 ? "21" : "25"}
             fontWeight="900"
-            letterSpacing="0.3"
+            letterSpacing="0.4"
             fill="#000000"
           >
             {effectiveModel || ""}
@@ -5194,7 +5281,7 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="13.5"
+            fontSize="18"
             fontWeight="900"
             letterSpacing="0.5"
             fill="#000000"
@@ -5207,10 +5294,10 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="end"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize={String(effectivePart || "").length > 9 ? "14.5" : "16"}
+            fontSize={String(effectivePart || "").length > 10 ? "18" : "21"}
             fontWeight="900"
-            letterSpacing="0.2"
-            textLength={String(effectivePart || "").length > 7 ? "92" : undefined}
+            letterSpacing="0.3"
+            textLength={String(effectivePart || "").length > 7 ? "98" : undefined}
             lengthAdjust={String(effectivePart || "").length > 7 ? "spacingAndGlyphs" : undefined}
             fill="#000000"
           >
@@ -5226,7 +5313,7 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="13.5"
+            fontSize="17"
             fontWeight="900"
             letterSpacing="0.5"
             fill="#000000"
@@ -5239,10 +5326,10 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="end"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="13.5"
+            fontSize="17.5"
             fontWeight="900"
-            letterSpacing="0.1"
-            textLength={String(effectivePartName || "").length > 7 ? "90" : undefined}
+            letterSpacing="0.2"
+            textLength={String(effectivePartName || "").length > 7 ? "96" : undefined}
             lengthAdjust={String(effectivePartName || "").length > 7 ? "spacingAndGlyphs" : undefined}
             fill="#000000"
           >
@@ -5258,7 +5345,7 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="13.5"
+            fontSize="18"
             fontWeight="900"
             letterSpacing="0.5"
             fill="#000000"
@@ -5271,7 +5358,7 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="end"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="20"
+            fontSize="28"
             fontWeight="900"
             letterSpacing="0.5"
             fill="#000000"
@@ -5285,11 +5372,11 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
           x="28"
           y="262"
           fontFamily="'Arial', 'Helvetica', sans-serif"
-          fontSize="24"
+          fontSize="29"
           fontWeight="900"
           letterSpacing="0.8"
           fill="#000000"
-          textLength={effectiveCompositeCode && effectiveCompositeCode.length > 20 ? "600" : undefined}
+          textLength={effectiveCompositeCode && effectiveCompositeCode.length > 20 ? "605" : undefined}
           lengthAdjust={effectiveCompositeCode && effectiveCompositeCode.length > 20 ? "spacingAndGlyphs" : undefined}
         >
           {effectiveCompositeCode}
