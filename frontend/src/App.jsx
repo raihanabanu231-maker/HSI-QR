@@ -2710,7 +2710,7 @@ export default function App() {
                       openFolder(selectedFolder.trim());
                     }
                   }}
-                  placeholder="Enter or paste any folder path (e.g. C:\Inspection or D:\CameraData) and press Enter"
+                  placeholder="Enter or paste ANY folder path (e.g. C:\ or D:\ClientFolder\Camera) & press Scan"
                   id="input-scan-folder"
                 />
               </div>
@@ -2726,9 +2726,10 @@ export default function App() {
                 }}
                 disabled={isScanning}
                 id="btn-scan-now"
+                title="Scan this folder and all subfolders recursively for camera images"
               >
                 <RefreshCw size={16} className={isScanning ? "spin" : ""} />
-                <span>{isScanning ? "Scanning Folder..." : "Scan Folder"}</span>
+                <span>{isScanning ? "Scanning All Subfolders..." : "🔍 Scan Folder & All Subfolders"}</span>
               </button>
 
               <button

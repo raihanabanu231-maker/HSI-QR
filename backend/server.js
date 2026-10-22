@@ -655,12 +655,12 @@ app.post("/api/watcher/start", async (req, res) => {
   } catch (e) {}
 
   try {
-    activeFolderWatcher = fs.watch(folderPath, { persistent: true }, (eventType, filename) => {
+    activeFolderWatcher = fs.watch(folderPath, { recursive: true, persistent: true }, (eventType, filename) => {
       if (!filename) return;
       const ext = path.extname(filename).toLowerCase();
       if (!IMAGE_EXT.includes(ext)) return;
 
-      const fullPath = path.join(folderPath, filename);
+      const fullPath = path.isAbsolute(filename) ? filename : path.join(folderPath, filename);
       if (seenFiles.has(fullPath)) return;
 
       // Allow camera driver to finish writing file
@@ -670,7 +670,11 @@ app.post("/api/watcher/start", async (req, res) => {
           if (seenFiles.has(fullPath)) return;
           seenFiles.add(fullPath);
 
-          const isOk = /(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(filename) || /_ok_/i.test(filename);
+          const baseName = path.parse(filename).name;
+          const subDir = path.dirname(filename).toLowerCase();
+          const isNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject|fail|bad|flaw/i.test(baseName) ||
+                       /(^|[^a-z0-9])ng([^a-z0-9]|$)|defect|reject|fail/i.test(subDir);
+          const isOk = !isNg;
           const status = isOk ? "OK" : "NG";
           const folderName = path.basename(folderPath);
 
@@ -983,30 +987,34 @@ app.get("/api/browse", (req, res) => {
       })
       .sort();
 
-    let imageFiles = entries.filter((e) => !e.isDirectory() && /\.(png|jpe?g|svg|bmp|webp)$/i.test(e.name));
-    let okCount = imageFiles.filter((e) => /(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(e.name)).length;
-    let ngCount = imageFiles.filter((e) => /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject/i.test(e.name)).length;
+    let imageFiles = [];
+    let okCount = 0;
+    let ngCount = 0;
 
-    // If immediate directory has no direct images, count nested camera images (e.g. LPSPOST/P000/...)
-    if (imageFiles.length === 0 && folders.length > 0) {
-      function countSubImages(curDir, d = 0) {
-        if (d > 7) return;
-        try {
-          const subEntries = fs.readdirSync(curDir, { withFileTypes: true });
-          for (const se of subEntries) {
-            if (se.isDirectory()) {
-              if (se.name.startsWith(".") || se.name.toLowerCase() === "node_modules") continue;
-              countSubImages(path.join(curDir, se.name), d + 1);
-            } else if (/\.(png|jpe?g|svg|bmp|webp)$/i.test(se.name)) {
+    function countSubImages(curDir, d = 0) {
+      if (d > 15) return;
+      try {
+        const subEntries = fs.readdirSync(curDir, { withFileTypes: true });
+        for (const se of subEntries) {
+          if (se.isDirectory()) {
+            const lower = se.name.toLowerCase();
+            if (lower.startsWith(".") || lower === "node_modules" || lower === "$recycle.bin" || lower === "windows") continue;
+            countSubImages(path.join(curDir, se.name), d + 1);
+          } else {
+            const ext = path.extname(se.name).toLowerCase();
+            if (IMAGE_EXT.includes(ext)) {
               imageFiles.push(se.name);
-              if (/(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(se.name)) okCount++;
-              if (/(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject/i.test(se.name)) ngCount++;
+              const nameOnly = path.parse(se.name).name;
+              const isNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject|fail|bad|flaw/i.test(nameOnly) ||
+                           /(^|[^a-z0-9])ng([^a-z0-9]|$)|defect|reject|fail/i.test(curDir.toLowerCase());
+              if (isNg) ngCount++;
+              else okCount++;
             }
           }
-        } catch (e) {}
-      }
-      countSubImages(realPath, 0);
+        }
+      } catch (e) {}
     }
+    countSubImages(realPath, 0);
 
     // Calculate parent in Windows format
     let parent = null;
@@ -1151,8 +1159,8 @@ app.post("/api/folder/scan", async (req, res) => {
   ]);
 
   function walk(dir, depth = 0) {
-    if (depth > 8) return; // Support industrial nested camera hierarchies (e.g. LPSPOST/P000/Jan192026/IV00158/0000)
-    if (okFiles.length + ngFiles.length >= 250) return; // Memory safety
+    if (depth > 15) return; // Support deep nested camera hierarchies across any client folder
+    if (okFiles.length + ngFiles.length >= 1000) return; // Up to 1000 images per scan
 
     let entries;
     try {
@@ -1161,7 +1169,7 @@ app.post("/api/folder/scan", async (req, res) => {
       return;
     }
     for (const entry of entries) {
-      if (okFiles.length + ngFiles.length >= 250) break;
+      if (okFiles.length + ngFiles.length >= 1000) break;
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         if (fullPath === QR_OUTPUT_DIR) continue;
@@ -1170,18 +1178,31 @@ app.post("/api/folder/scan", async (req, res) => {
         walk(fullPath, depth + 1);
       } else {
         const ext = path.extname(entry.name).toLowerCase();
-        const nameOnly = path.parse(entry.name).name;
-        if (!IMAGE_EXT.includes(ext) && !nameOnly.toUpperCase().includes("OK") && !nameOnly.toUpperCase().includes("NG")) {
+        if (!IMAGE_EXT.includes(ext)) {
           continue;
         }
 
-        const isOk = /(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(nameOnly);
-        const isNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject/i.test(nameOnly);
+        const nameOnly = path.parse(entry.name).name;
+        const relDir = path.relative(cleanFolderPath, dir).toLowerCase();
+
+        // Check if explicitly marked as Defect (NG) via file name or subfolder
+        const isNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject|fail|bad|flaw|error/i.test(nameOnly) ||
+                     /(^|[^a-z0-9])ng([^a-z0-9]|$)|defect|reject|fail/i.test(relDir);
+
         const host = req.get("host") || "localhost:5000";
         const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
         const previewUrl = `${proto}://${host}/api/image-preview?path=${encodeURIComponent(fullPath)}`;
 
-        if (isOk) {
+        if (isNg) {
+          ngFiles.push({
+            name: entry.name,
+            fullPath,
+            previewUrl,
+            status: "NG",
+            scannedAt: new Date().toISOString(),
+          });
+        } else {
+          // If not flagged as defect (NG), it's treated as a valid OK part ready for labeling!
           const pieceIndex = okFiles.length + 1;
           const defaultSlNo = String(pieceIndex).padStart(4, "0");
           okFiles.push({
@@ -1191,14 +1212,6 @@ app.post("/api/folder/scan", async (req, res) => {
             status: "OK",
             pieceIndex,
             defaultSlNo,
-            scannedAt: new Date().toISOString(),
-          });
-        } else if (isNg) {
-          ngFiles.push({
-            name: entry.name,
-            fullPath,
-            previewUrl,
-            status: "NG",
             scannedAt: new Date().toISOString(),
           });
         }
