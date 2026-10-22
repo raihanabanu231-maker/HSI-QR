@@ -565,6 +565,24 @@ export default function App() {
     return () => clearInterval(clockInterval);
   }, []);
 
+  // Suppress document title during printing so Chrome/Edge does not print header text
+  useEffect(() => {
+    let savedTitle = document.title;
+    const handleBeforePrint = () => {
+      savedTitle = document.title;
+      document.title = "";
+    };
+    const handleAfterPrint = () => {
+      document.title = savedTitle || "HSI Industrial Inspection & 100x30 Label System";
+    };
+    window.addEventListener("beforeprint", handleBeforePrint);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", handleBeforePrint);
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
+
   // Initial load: Only load system data when authenticated
   useEffect(() => {
     if (!isAuthenticated) return;

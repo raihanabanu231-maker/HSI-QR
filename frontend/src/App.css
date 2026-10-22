@@ -1925,18 +1925,30 @@ body {
 
 @media print {
   @page {
-    size: 100mm 30mm;
-    margin: 0mm;
+    size: 100mm 30mm !important;
+    margin: 0mm !important;
+  }
+  @page :first { margin: 0mm !important; }
+  @page :left { margin: 0mm !important; }
+  @page :right { margin: 0mm !important; }
+
+  *, *::before, *::after {
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   html, body {
     width: 100mm !important;
     height: 30mm !important;
+    max-width: 100mm !important;
     max-height: 30mm !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
     background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* Completely suppress entire app shell from print flow so only 1 page is generated */
