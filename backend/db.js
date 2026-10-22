@@ -35,8 +35,16 @@ if (isMySQL) {
     async query(sqlText, params = []) {
       if (!mysqlPool) throw new Error("MySQL pool not initialized");
 
-      // Convert Postgres placeholders ($1, $2, ...) to MySQL (?)
-      let mysqlSql = sqlText.replace(/\$\d+/g, "?");
+      // Convert Postgres placeholders ($1, $2, ...) to MySQL (?) and align params
+      const mappedParams = [];
+      let hasNumberedPlaceholders = false;
+      let mysqlSql = sqlText.replace(/\$(\d+)/g, (match, num) => {
+        hasNumberedPlaceholders = true;
+        const idx = parseInt(num, 10) - 1;
+        mappedParams.push(params[idx]);
+        return "?";
+      });
+      const finalParams = hasNumberedPlaceholders ? mappedParams : params;
 
       // Convert date casting e.g. scanned_at::date -> DATE(scanned_at)
       mysqlSql = mysqlSql.replace(/([a-zA-Z0-9_]+)::date/gi, "DATE($1)");
@@ -67,7 +75,7 @@ if (isMySQL) {
         }
       }
 
-      const [res] = await mysqlPool.query(mysqlSql, params);
+      const [res] = await mysqlPool.query(mysqlSql, finalParams);
 
       if (isInsert && hasReturning && res.insertId) {
         const tableNameMatch = mysqlSql.match(/INSERT\s+INTO\s+([a-zA-Z0-9_]+)/i);
@@ -420,6 +428,7 @@ async function insertLog({
   const defShift = shift || "Shift 1";
   const defPackQty = packQty || (isOk ? "1 / 1" : "0 / 1");
   const defRemark = remark || (isOk ? "Verified OK" : "Defect / NG Detected");
+  const printedAt = printed ? new Date() : null;
 
   const res = await pool.query(
     `INSERT INTO logs (
@@ -428,7 +437,7 @@ async function insertLog({
       operator, shift, trace_number, pressure, pack_qty, remark,
       printed, printed_at, sl_no
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CASE WHEN $16 THEN NOW() ELSE NULL END, $17)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
     RETURNING *`,
     [
       folderName,
@@ -446,8 +455,9 @@ async function insertLog({
       defPressure,
       defPackQty,
       defRemark,
-      !!printed,
-      slNo || null,
+      Boolean(printed),
+      printedAt,
+      slNo ? String(slNo) : null,
     ]
   );
   return res.rows[0];
