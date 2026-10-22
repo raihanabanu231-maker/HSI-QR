@@ -2155,6 +2155,13 @@ body {
   transform: scale(0.99);
 }
 
+.btn-login-submit:disabled {
+  background: #3b82f6;
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .login-hints {
   margin-top: 16px;
   font-size: 12px;

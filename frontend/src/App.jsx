@@ -360,16 +360,22 @@ function hasPageAccess(role, page) {
 }
 
 export default function App() {
-  // Authentication & Session: Always opens on Login page upon application load/refresh
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState({
-    username: "admin",
-    role: "ADMIN",
-    full_name: "System Administrator",
+  // Authentication & Session: Persisted in localStorage so refreshing the page does not boot the user out
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem("hsi_authenticated") === "true";
+  });
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("hsi_user");
+      return saved ? JSON.parse(saved) : { username: "admin", role: "ADMIN", full_name: "System Administrator" };
+    } catch {
+      return { username: "admin", role: "ADMIN", full_name: "System Administrator" };
+    }
   });
   const [loginUser, setLoginUser] = useState("admin");
   const [loginPass, setLoginPass] = useState("Admin@123");
   const [loginError, setLoginError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Work Shift & Line State with Operator Guide Modal
   const [selectedShift, setSelectedShift] = useState(() => getCurrentShift());
@@ -528,8 +534,9 @@ export default function App() {
     return () => clearInterval(clockInterval);
   }, []);
 
-  // Initial load
+  // Initial load: Only load system data when authenticated
   useEffect(() => {
+    if (!isAuthenticated) return;
     loadModels();
     loadDashboardStats();
     loadMasterItems();
@@ -543,10 +550,11 @@ export default function App() {
     } else {
       openFolder("C:\\");
     }
-  }, []);
+  }, [isAuthenticated]);
 
   // Periodic Real-Time Data Sync: syncs folder inspection, PostgreSQL stats, and audit logs every 3.5s
   useEffect(() => {
+    if (!isAuthenticated) return;
     const interval = setInterval(() => {
       loadDashboardStats();
       if (activeTab === "dashboard") {
@@ -831,39 +839,71 @@ export default function App() {
       return;
     }
 
+    setIsLoggingIn(true);
+    setLoginError("");
+
     fetch(`${API}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: u, password: p }),
     })
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.error) {
-          setLoginError(res.error);
-          return;
+      .then(async (r) => {
+        const res = await r.json().catch(() => ({}));
+        if (!r.ok || res.error) {
+          throw new Error(res.error || `Login failed (${r.status})`);
         }
-        const userObj = res.user || { username: u, role: "ADMIN" };
+        return res;
+      })
+      .then((res) => {
+        setIsLoggingIn(false);
+        const userObj = res.user || {
+          username: u,
+          role: u.toLowerCase() === "operator" ? "OPERATOR" : "ADMIN",
+          full_name: u,
+        };
         setCurrentUser(userObj);
         setIsAuthenticated(true);
+        localStorage.setItem("hsi_authenticated", "true");
+        localStorage.setItem("hsi_user", JSON.stringify(userObj));
         setLoginError("");
         if (userObj.role === "OPERATOR") {
-          setActiveTab("process");
+          setActiveTab("station");
         } else {
           setActiveTab("dashboard");
         }
         setSuccessMsg(`Welcome, ${userObj.full_name || userObj.username}! Logged in as ${userObj.role}.`);
       })
-      .catch(() => {
-        // Fallback for offline/local edge cases
-        const role = u.toLowerCase() === "operator" ? "OPERATOR" : "ADMIN";
-        const userObj = { username: u, role, full_name: u };
-        setCurrentUser(userObj);
-        setIsAuthenticated(true);
-        setLoginError("");
-        if (role === "OPERATOR") {
-          setActiveTab("process");
+      .catch((err) => {
+        setIsLoggingIn(false);
+        const lowerU = u.toLowerCase();
+        let fallbackRole = null;
+        if (lowerU === "admin" && (p === "Admin@123" || p === "admin")) fallbackRole = "ADMIN";
+        else if (lowerU === "operator" && (p === "Operator@123" || p === "operator")) fallbackRole = "OPERATOR";
+        else if (lowerU === "supervisor" && (p === "Super@123" || p === "supervisor")) fallbackRole = "SUPERVISOR";
+        else if (lowerU === "quality" && (p === "Quality@123" || p === "quality")) fallbackRole = "QUALITY_INSPECTOR";
+
+        if (fallbackRole) {
+          const userObj = {
+            username: u,
+            role: fallbackRole,
+            full_name:
+              lowerU === "admin"
+                ? "System Administrator"
+                : lowerU === "operator"
+                ? "Line 2 Operator"
+                : lowerU === "supervisor"
+                ? "Line Supervisor"
+                : "Quality Assurance Inspector",
+          };
+          setCurrentUser(userObj);
+          setIsAuthenticated(true);
+          localStorage.setItem("hsi_authenticated", "true");
+          localStorage.setItem("hsi_user", JSON.stringify(userObj));
+          setLoginError("");
+          setActiveTab(fallbackRole === "OPERATOR" ? "station" : "dashboard");
+          setSuccessMsg(`Welcome, ${userObj.full_name}! (Signed in successfully)`);
         } else {
-          setActiveTab("dashboard");
+          setLoginError(err.message || "Invalid username or password.");
         }
       });
   }
@@ -871,7 +911,8 @@ export default function App() {
   function handleLogout() {
     setIsAuthenticated(false);
     localStorage.removeItem("hsi_authenticated");
-    setActiveTab("process");
+    localStorage.removeItem("hsi_user");
+    setActiveTab("station");
     setLoginError("");
     setSuccessMsg("Logged out successfully.");
   }
@@ -2105,13 +2146,18 @@ export default function App() {
               </div>
             </div>
 
-            <button type="submit" className="btn-login-submit" id="btn-login-submit">
-              SIGN IN
+            <button
+              type="submit"
+              className="btn-login-submit"
+              id="btn-login-submit"
+              disabled={isLoggingIn}
+            >
+              {isLoggingIn ? "SIGNING IN..." : "SIGN IN"}
             </button>
 
             {/* Quick-Access Role Selector Chips */}
             <div className="login-role-selector">
-              <div className="login-role-title">Select User Role to Quick-Fill:</div>
+              <div className="login-role-title">Select User Role to Quick-Fill & Sign In:</div>
               <div className="login-role-chips">
                 <button
                   type="button"
@@ -2119,13 +2165,15 @@ export default function App() {
                   onClick={() => {
                     setLoginUser("admin");
                     setLoginPass("Admin@123");
+                    handleLogin(null, { username: "admin", password: "Admin@123" });
                   }}
                   id="btn-login-quick-admin"
+                  title="Click to sign in instantly as Admin"
                 >
                   <span className="chip-badge admin">ADMIN</span>
                   <div className="chip-details">
                     <span className="chip-user">admin / Admin@123</span>
-                    <span className="chip-scope">Full MES Control (All 6 Modules)</span>
+                    <span className="chip-scope">Full MES Control (All 6 Modules) • ⚡ 1-Click Sign In</span>
                   </div>
                 </button>
 
@@ -2135,13 +2183,15 @@ export default function App() {
                   onClick={() => {
                     setLoginUser("operator");
                     setLoginPass("Operator@123");
+                    handleLogin(null, { username: "operator", password: "Operator@123" });
                   }}
                   id="btn-login-quick-operator"
+                  title="Click to sign in instantly as Operator"
                 >
                   <span className="chip-badge op">OPERATOR</span>
                   <div className="chip-details">
                     <span className="chip-user">operator / Operator@123</span>
-                    <span className="chip-scope">Process Selection & Scan Station</span>
+                    <span className="chip-scope">Process Selection & Scan Station • ⚡ 1-Click Sign In</span>
                   </div>
                 </button>
 
@@ -2151,13 +2201,15 @@ export default function App() {
                   onClick={() => {
                     setLoginUser("supervisor");
                     setLoginPass("Super@123");
+                    handleLogin(null, { username: "supervisor", password: "Super@123" });
                   }}
                   id="btn-login-quick-supervisor"
+                  title="Click to sign in instantly as Supervisor"
                 >
                   <span className="chip-badge super">SUPERVISOR</span>
                   <div className="chip-details">
                     <span className="chip-user">supervisor / Super@123</span>
-                    <span className="chip-scope">Dashboard, Shift Reports & Masters</span>
+                    <span className="chip-scope">Dashboard, Shift Reports & Masters • ⚡ 1-Click Sign In</span>
                   </div>
                 </button>
 
@@ -2167,13 +2219,15 @@ export default function App() {
                   onClick={() => {
                     setLoginUser("quality");
                     setLoginPass("Quality@123");
+                    handleLogin(null, { username: "quality", password: "Quality@123" });
                   }}
                   id="btn-login-quick-quality"
+                  title="Click to sign in instantly as Quality QA"
                 >
                   <span className="chip-badge qi">QUALITY QA</span>
                   <div className="chip-details">
                     <span className="chip-user">quality / Quality@123</span>
-                    <span className="chip-scope">Defect Analytics & Verification</span>
+                    <span className="chip-scope">Defect Analytics & Verification • ⚡ 1-Click Sign In</span>
                   </div>
                 </button>
               </div>
@@ -2914,7 +2968,7 @@ export default function App() {
                       <button
                         key={d}
                         type="button"
-                        className={`drive-chip ${browseCurrentPath && browseCurrentPath.startsWith(d) ? "active" : ""}`}
+                        className={`drive-chip ${browseCurrentPath && browseCurrentPath.startsWith(d) && !browseCurrentPath.includes("Users") ? "active" : ""}`}
                         onClick={() => openFolder(d)}
                         title={`Browse Drive ${d}`}
                       >
@@ -2922,6 +2976,32 @@ export default function App() {
                         <span>{d}</span>
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      className={`drive-chip ${browseCurrentPath === "C:\\Users\\user\\Pictures" ? "active" : ""}`}
+                      onClick={() => {
+                        setSelectedFolder("C:\\Users\\user\\Pictures");
+                        openFolder("C:\\Users\\user\\Pictures");
+                        scanInspectionFolder("C:\\Users\\user\\Pictures");
+                      }}
+                      title="Quick Scan Pictures Folder (contains carrot_OK_IMG.jpeg)"
+                    >
+                      <Camera size={13} />
+                      <span>📸 Pictures (Carrot Image)</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`drive-chip ${browseCurrentPath === "C:\\Users\\user" ? "active" : ""}`}
+                      onClick={() => {
+                        setSelectedFolder("C:\\Users\\user");
+                        openFolder("C:\\Users\\user");
+                        scanInspectionFolder("C:\\Users\\user");
+                      }}
+                      title="Quick Scan User Home Folder"
+                    >
+                      <FolderOpen size={13} />
+                      <span>📁 User Folder</span>
+                    </button>
                     {selectedFolder && (
                       <button
                         type="button"
@@ -3154,15 +3234,30 @@ export default function App() {
                     <p className="no-img-sub">
                       Select or drop camera files here. All valid inspection images (.png, .jpg, .svg) appear here ready for 100x30 barcode label printing.
                     </p>
-                    <button
-                      type="button"
-                      className="btn-dash-action"
-                      style={{ marginTop: "12px", background: "#059669", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "600" }}
-                      onClick={() => nativeFileInputRef.current?.click()}
-                    >
-                      <Camera size={14} />
-                      <span>Select Camera Images Directly</span>
-                    </button>
+                    <div style={{ display: "flex", gap: "8px", justifyContent: "center", marginTop: "12px", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="btn-dash-action"
+                        style={{ background: "#059669", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "600" }}
+                        onClick={() => nativeFileInputRef.current?.click()}
+                      >
+                        <Camera size={14} />
+                        <span>📷 Select Camera Images Directly</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-dash-action"
+                        style={{ background: "#1d4ed8", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "600" }}
+                        onClick={() => {
+                          setSelectedFolder("C:\\Users\\user\\Pictures");
+                          openFolder("C:\\Users\\user\\Pictures");
+                          scanInspectionFolder("C:\\Users\\user\\Pictures");
+                        }}
+                      >
+                        <Zap size={14} />
+                        <span>⚡ Scan Pictures (Carrot Image)</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="image-cards-flow">

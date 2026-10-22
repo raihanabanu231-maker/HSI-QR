@@ -1445,10 +1445,12 @@ app.post("/api/folder/scan", async (req, res) => {
         printed: true,
       });
 
-      await pool.query(
-        "UPDATE logs SET printed = TRUE, printed_at = NOW(), sl_no = $1, composite_code = $2 WHERE id = $3",
-        [pieceSlNo, compositeCode, existing.rows[0].id]
-      );
+      if (existingRow?.id) {
+        await pool.query(
+          "UPDATE logs SET printed = TRUE, printed_at = NOW(), sl_no = $1, composite_code = $2 WHERE id = $3",
+          [pieceSlNo, compositeCode, existingRow.id]
+        );
+      }
     }
 
     f.printed = isPrinted;
