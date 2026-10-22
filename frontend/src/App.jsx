@@ -551,7 +551,7 @@ export default function App() {
     }
   }, [isAuthenticated]);
 
-  // Periodic Real-Time Data Sync: syncs folder inspection, PostgreSQL stats, and audit logs every 3.5s
+  // Periodic Real-Time Data Sync: syncs PostgreSQL dashboard stats & logs, and station folder if active
   useEffect(() => {
     if (!isAuthenticated) return;
     const interval = setInterval(() => {
@@ -559,7 +559,7 @@ export default function App() {
       if (activeTab === "dashboard") {
         loadAuditLogs();
       }
-      if (selectedFolder) {
+      if (selectedFolder && activeTab === "station") {
         fetch(`${API}/folder/scan`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -581,13 +581,11 @@ export default function App() {
           .then((data) => {
             if (data.okFiles) setOkImages(data.okFiles);
             if (data.ngFiles) setNgImages(data.ngFiles);
-            if (data.total_ok !== undefined) {
-              setCounters((prev) => ({ ...prev, total_ok: data.total_ok }));
-            }
+            // Do NOT overwrite plant-wide counters with single folder count!
           })
           .catch(() => {});
       }
-    }, 3500);
+    }, 4000);
     return () => clearInterval(interval);
   }, [selectedFolder, selectedModel, specs.motherPartNo, specs.partName, specs.targetAlcCode, specs.slNo, selectedChildPart, currentUser, activeTab, selectedShift]);
 
@@ -1306,12 +1304,8 @@ export default function App() {
         const okCount = okFiles.length;
         const ngCount = data.ngFiles?.length || 0;
 
-        setCounters((prev) => ({
-          ...prev,
-          total_ok: data.total_ok || prev.total_ok,
-          total_ng: data.total_ng || prev.total_ng,
-          total_labels_today: prev.total_labels_today + okCount,
-        }));
+        // Keep plant-wide counters authoritative from PostgreSQL
+        loadDashboardStats();
 
         if (okCount > 0) {
           setSuccessMsg(`⚡ Auto-Print Active: Found ${okCount} OK Images. 100x30 labels auto-printed directly without asking!`);
