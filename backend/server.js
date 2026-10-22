@@ -43,6 +43,11 @@ const upload = multer({
   limits: { fileSize: 30 * 1024 * 1024 },
 });
 
+const folderUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024, files: 1500 },
+});
+
 const IMAGE_EXT = [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".avif", ".webp", ".svg"];
 const QR_OUTPUT_DIR = path.join(__dirname, "qr-output");
 if (!fs.existsSync(QR_OUTPUT_DIR)) fs.mkdirSync(QR_OUTPUT_DIR, { recursive: true });
@@ -872,6 +877,8 @@ function resolveSystemPath(inputPath) {
     return { realPath: path.join(VIRTUAL_DRIVES_DIR, "C"), displayPath: "C:\\" };
   }
   let raw = String(inputPath).trim();
+  // Strip surrounding quotes if copied from Windows Explorer 'Copy as path'
+  raw = raw.replace(/^["']+|["']+$/g, "").trim();
 
   // If path is "/" or "\" on cloud, always map to "C:\"
   if (raw === "/" || raw === "\\") {
@@ -1126,6 +1133,71 @@ app.post("/api/terminal/verify", async (req, res) => {
     status: isMatch ? "PASS" : "FAIL",
     timestamp: new Date().toISOString(),
   });
+});
+
+// Upload an entire local inspection folder with all subfolders & camera images to physical disk
+app.post("/api/folder/upload", folderUpload.array("files", 1000), async (req, res) => {
+  try {
+    const files = req.files || [];
+    if (!files.length) {
+      return res.status(400).json({ error: "No inspection files uploaded." });
+    }
+
+    const rawFolderName = req.body.folderName || "Local_Inspection";
+    const cleanFolderName = sanitizeFileName(rawFolderName) || "Inspection";
+    const targetDisplayPath = `C:\\Inspection\\${cleanFolderName}`;
+    const { realPath, displayPath } = resolveSystemPath(targetDisplayPath);
+
+    if (!fs.existsSync(realPath)) {
+      fs.mkdirSync(realPath, { recursive: true });
+    }
+
+    let relativePaths = [];
+    if (req.body.relativePathsJson) {
+      try {
+        relativePaths = JSON.parse(req.body.relativePathsJson);
+      } catch (e) {}
+    } else if (req.body.relativePaths) {
+      relativePaths = Array.isArray(req.body.relativePaths)
+        ? req.body.relativePaths
+        : [req.body.relativePaths];
+    }
+
+    let savedCount = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      let relPath = relativePaths[i] || file.originalname || `img_${i}.png`;
+
+      // Normalize slashes
+      relPath = relPath.replace(/\\/g, "/");
+
+      // Strip top-level directory if present (e.g. "MyFolder/sub/image.png" -> "sub/image.png")
+      const parts = relPath.split("/").filter(Boolean);
+      if (parts.length > 1) {
+        parts.shift(); // remove the top folder name since it's already in cleanFolderName
+      }
+      const destSubPath = parts.join(path.sep);
+      const targetFilePath = path.join(realPath, destSubPath);
+      const targetDir = path.dirname(targetFilePath);
+
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+
+      fs.writeFileSync(targetFilePath, file.buffer);
+      savedCount++;
+    }
+
+    res.json({
+      success: true,
+      folderPath: displayPath,
+      uploadedCount: savedCount,
+      message: `Successfully uploaded ${savedCount} inspection images to ${displayPath}`,
+    });
+  } catch (err) {
+    console.error("Folder upload error:", err);
+    res.status(500).json({ error: "Failed to upload inspection folder: " + err.message });
+  }
 });
 
 // Scan folder for OK and Not OK (NG) images + Auto-Print label for OK images!

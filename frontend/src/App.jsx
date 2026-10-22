@@ -124,8 +124,17 @@ function generateQrVectorPath(text) {
   }
 }
 
+function sanitizePath(p) {
+  if (!p) return "";
+  let clean = String(p).trim();
+  // Strip surrounding quotes if copied from Windows Explorer "Copy as path"
+  clean = clean.replace(/^["']+|["']+$/g, "").trim();
+  return clean;
+}
+
 function isWindowsPath(p) {
-  return /^[a-zA-Z]:/.test(p);
+  const clean = sanitizePath(p);
+  return /^[a-zA-Z]:/.test(clean);
 }
 
 function joinChildPath(parentPath, childName) {
@@ -367,6 +376,8 @@ export default function App() {
   const [showShiftLineHelpModal, setShowShiftLineHelpModal] = useState(false);
   const [liveTime, setLiveTime] = useState(() => getLocalTimeString());
   const nativeFolderInputRef = useRef(null);
+  const [isUploadingFolder, setIsUploadingFolder] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
 
   // Navigation active tab: 'dashboard' | 'process' | 'station' | 'reports' | 'masters' | 'users'
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -597,7 +608,7 @@ export default function App() {
   }
 
   function openFolder(targetPath) {
-    let p = targetPath || "C:\\LPSPOST";
+    let p = sanitizePath(targetPath) || "C:\\LPSPOST";
     if (p === "/" || p === "\\" || !isWindowsPath(p)) {
       p = "C:\\";
     }
@@ -630,63 +641,96 @@ export default function App() {
   }
 
   function handleSelectAndScanFolder(folderPath) {
-    const p = folderPath || browseCurrentPath || selectedFolder;
+    const p = sanitizePath(folderPath || browseCurrentPath || selectedFolder);
+    if (!p) return;
     setSelectedFolder(p);
     setBrowseCurrentPath(p);
+    localStorage.setItem("hsi_last_folder", p);
     scanInspectionFolder(p);
   }
 
-  function handleLocalFolderSelect(e) {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+  function handleDirectScanClick() {
+    const raw = selectedFolder || "";
+    const clean = sanitizePath(raw);
+    if (!clean) {
+      setError("Please enter or choose an inspection folder path.");
+      return;
+    }
+    setSelectedFolder(clean);
+    setBrowseCurrentPath(clean);
+    localStorage.setItem("hsi_last_folder", clean);
+    scanInspectionFolder(clean);
+    openFolder(clean);
+  }
 
-    const folderName = files[0].webkitRelativePath
-      ? files[0].webkitRelativePath.split("/")[0]
-      : "Local Folder";
+  async function handleLocalFolderSelect(e) {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
 
-    const displayPath = `C:\\Inspection\\${folderName}`;
-    setSelectedFolder(displayPath);
-    setBrowseCurrentPath(displayPath);
+    const files = Array.from(fileList);
+    const imageFiles = files.filter((f) => /\.(png|jpe?g|svg|bmp|webp|tiff|gif)$/i.test(f.name));
 
-    const imageFiles = files.filter((f) => /\.(png|jpe?g|svg|bmp|webp)$/i.test(f.name));
     if (imageFiles.length === 0) {
-      setError(`No image files found in chosen folder '${folderName}'.`);
+      setError(`No camera inspection images found in selected folder.`);
+      if (nativeFolderInputRef.current) nativeFolderInputRef.current.value = "";
       return;
     }
 
-    const okList = [];
-    const ngList = [];
+    const firstRelative = imageFiles[0].webkitRelativePath || "";
+    const rawFolderName = firstRelative ? firstRelative.split("/")[0] : "LocalFolder";
+    const cleanFolderName = rawFolderName.replace(/[^a-zA-Z0-9_-]/g, "_") || "Inspection";
+    const targetDisplayPath = `C:\\Inspection\\${cleanFolderName}`;
 
-    imageFiles.forEach((file) => {
-      const isOk = /(^|[^a-z0-9])ok([^a-z0-9]|$)/i.test(file.name);
-      const isNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject/i.test(file.name);
-      const previewUrl = URL.createObjectURL(file);
+    // Immediately update the path input so user sees the folder entered!
+    setSelectedFolder(targetDisplayPath);
+    setBrowseCurrentPath(targetDisplayPath);
+    setIsUploadingFolder(true);
+    setUploadProgress(`Uploading ${imageFiles.length} files from '${rawFolderName}' to ${targetDisplayPath}...`);
+    setError("");
 
-      const item = {
-        name: file.name,
-        fullPath: file.webkitRelativePath || file.name,
-        size: file.size,
-        previewUrl,
-        isSimulated: false,
-      };
+    try {
+      const formData = new FormData();
+      formData.append("folderName", cleanFolderName);
 
-      if (isNg) {
-        ngList.push(item);
-      } else {
-        okList.push(item);
+      const relPaths = [];
+      imageFiles.forEach((file) => {
+        formData.append("files", file);
+        relPaths.push(file.webkitRelativePath || file.name);
+      });
+      formData.append("relativePathsJson", JSON.stringify(relPaths));
+
+      const res = await fetch(`${API}/folder/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Upload failed");
       }
-    });
 
-    setOkImages(okList);
-    setNgImages(ngList);
-    setCounters((prev) => ({
-      ...prev,
-      total_ok: prev.total_ok + okList.length,
-      total_ng: prev.total_ng + ngList.length,
-    }));
-    setSuccessMsg(
-      `Successfully loaded ${imageFiles.length} inspection images from '${folderName}' (${okList.length} OK, ${ngList.length} NG). Click 'Print Label' to print.`
-    );
+      setIsUploadingFolder(false);
+      setUploadProgress("");
+      const finalPath = data.folderPath || targetDisplayPath;
+      setSelectedFolder(finalPath);
+      setBrowseCurrentPath(finalPath);
+      localStorage.setItem("hsi_last_folder", finalPath);
+
+      setSuccessMsg(`✅ Uploaded ${data.uploadedCount} images from '${rawFolderName}'. Scanning now...`);
+
+      // Immediately scan the uploaded folder to load OK & NG images, piece index, defaultSlNo, and auto-print!
+      scanInspectionFolder(finalPath);
+      // Also sync folder browser view
+      openFolder(finalPath);
+    } catch (err) {
+      setIsUploadingFolder(false);
+      setUploadProgress("");
+      setError("Failed to upload folder: " + err.message);
+    } finally {
+      if (nativeFolderInputRef.current) {
+        nativeFolderInputRef.current.value = "";
+      }
+    }
   }
 
   function handleLogin(e, directCredentials) {
@@ -2706,8 +2750,8 @@ export default function App() {
                     setBrowseCurrentPath(e.target.value);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && selectedFolder.trim()) {
-                      openFolder(selectedFolder.trim());
+                    if (e.key === "Enter") {
+                      handleDirectScanClick();
                     }
                   }}
                   placeholder="Enter or paste ANY folder path (e.g. C:\ or D:\ClientFolder\Camera) & press Scan"
@@ -2717,14 +2761,8 @@ export default function App() {
 
               <button
                 className="btn-hsi-primary"
-                onClick={() => {
-                  if (selectedFolder && selectedFolder.trim()) {
-                    openFolder(selectedFolder.trim());
-                  } else {
-                    setError("Please select a drive below or enter a folder path.");
-                  }
-                }}
-                disabled={isScanning}
+                onClick={handleDirectScanClick}
+                disabled={isScanning || isUploadingFolder}
                 id="btn-scan-now"
                 title="Scan this folder and all subfolders recursively for camera images"
               >
@@ -2758,6 +2796,28 @@ export default function App() {
                 </span>
               </div>
             </div>
+
+            {/* Active Folder Upload Progress Banner */}
+            {uploadProgress && (
+              <div
+                style={{
+                  margin: "8px 0 14px 0",
+                  padding: "10px 14px",
+                  background: "#eff6ff",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: "8px",
+                  color: "#1d4ed8",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
+                <RefreshCw size={15} className="spin text-blue" />
+                <span>{uploadProgress}</span>
+              </div>
+            )}
 
             {/* Interactive Drive & Folder Explorer Panel (Matching Original App) */}
             {showFolderBrowser && (
@@ -2802,12 +2862,22 @@ export default function App() {
                     />
                     <button
                       type="button"
-                      className="drive-chip chip-pick-native"
+                      className={`drive-chip chip-pick-native ${isUploadingFolder ? "active" : ""}`}
                       onClick={() => nativeFolderInputRef.current?.click()}
-                      title="Open Windows Explorer dialog to pick any folder directly from your PC (C:\, D:\, Desktop)"
+                      disabled={isUploadingFolder}
+                      title="Open Windows Explorer dialog to pick and upload any folder directly from your PC (C:\, D:\, Desktop)"
                     >
-                      <FolderOpen size={13} />
-                      <span>💻 Choose Local Windows Folder (C:\, D:\)</span>
+                      {isUploadingFolder ? (
+                        <>
+                          <RefreshCw size={13} className="spin text-blue" />
+                          <span>Uploading Folder...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FolderOpen size={13} />
+                          <span>💻 Choose Local Windows Folder (C:\, D:\)</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
