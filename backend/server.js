@@ -1354,7 +1354,7 @@ app.post("/api/folder/scan", async (req, res) => {
     if (!existingRow) {
       // New inspection: insert log without blocking the loop
       const shouldAutoPrint = !!autoPrint;
-      insertLog({
+      const logInsertPromise = insertLog({
         folderName,
         folderPath: displayPath,
         fileName: f.name,
@@ -1369,7 +1369,10 @@ app.post("/api/folder/scan", async (req, res) => {
         shift: activeShift,
         remark: shouldAutoPrint ? "Camera Inspection: Verified OK (Auto-Printed)" : "Camera Inspection: Verified OK",
         printed: shouldAutoPrint,
-      }).catch((err) => console.warn("Background log insert error:", err.message));
+      }).catch((err) => {
+        console.warn("Background log insert error:", err.message);
+        return null;
+      });
 
       if (shouldAutoPrint) {
         isPrinted = true;
@@ -1403,6 +1406,7 @@ app.post("/api/folder/scan", async (req, res) => {
           printed: true,
         });
 
+        const newLog = await logInsertPromise;
         if (newLog?.id) {
           try {
             await pool.query(
