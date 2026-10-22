@@ -14,6 +14,7 @@ import {
   Upload,
   HardDrive,
   FolderOpen,
+  Camera,
   Eye,
   Lock,
   Unlock,
@@ -376,6 +377,7 @@ export default function App() {
   const [showShiftLineHelpModal, setShowShiftLineHelpModal] = useState(false);
   const [liveTime, setLiveTime] = useState(() => getLocalTimeString());
   const nativeFolderInputRef = useRef(null);
+  const nativeFileInputRef = useRef(null);
   const [isUploadingFolder, setIsUploadingFolder] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
 
@@ -670,14 +672,19 @@ export default function App() {
     const files = Array.from(fileList);
     const imageFiles = files.filter((f) => /\.(png|jpe?g|svg|bmp|webp|tiff|gif)$/i.test(f.name));
 
+    const firstRelative = files[0]?.webkitRelativePath || "";
+    const rawFolderName = firstRelative ? firstRelative.split("/")[0] : "LocalFolder";
+
     if (imageFiles.length === 0) {
-      setError(`No camera inspection images found in selected folder.`);
+      setError(`⚠️ No camera images found in '${rawFolderName}' (${files.length} non-image files skipped). Please choose a folder containing camera images (.png, .jpg, .svg) or use '📷 Select Camera Images Directly'.`);
       if (nativeFolderInputRef.current) nativeFolderInputRef.current.value = "";
       return;
     }
 
-    const firstRelative = imageFiles[0].webkitRelativePath || "";
-    const rawFolderName = firstRelative ? firstRelative.split("/")[0] : "LocalFolder";
+    // Safety limit to prevent freezing on accidentally selecting huge roots like C:\ or C:\Users
+    const MAX_BATCH = 300;
+    const filesToUpload = imageFiles.length > MAX_BATCH ? imageFiles.slice(0, MAX_BATCH) : imageFiles;
+
     const cleanFolderName = rawFolderName.replace(/[^a-zA-Z0-9_-]/g, "_") || "Inspection";
     const targetDisplayPath = `C:\\Inspection\\${cleanFolderName}`;
 
@@ -685,7 +692,7 @@ export default function App() {
     setSelectedFolder(targetDisplayPath);
     setBrowseCurrentPath(targetDisplayPath);
     setIsUploadingFolder(true);
-    setUploadProgress(`Uploading ${imageFiles.length} files from '${rawFolderName}' to ${targetDisplayPath}...`);
+    setUploadProgress(`Uploading ${filesToUpload.length} camera files from '${rawFolderName}' to ${targetDisplayPath}...`);
     setError("");
 
     try {
@@ -693,7 +700,7 @@ export default function App() {
       formData.append("folderName", cleanFolderName);
 
       const relPaths = [];
-      imageFiles.forEach((file) => {
+      filesToUpload.forEach((file) => {
         formData.append("files", file);
         relPaths.push(file.webkitRelativePath || file.name);
       });
@@ -716,7 +723,7 @@ export default function App() {
       setBrowseCurrentPath(finalPath);
       localStorage.setItem("hsi_last_folder", finalPath);
 
-      setSuccessMsg(`✅ Uploaded ${data.uploadedCount} images from '${rawFolderName}'. Scanning now...`);
+      setSuccessMsg(`✅ Uploaded and loaded ${data.uploadedCount} camera inspection images from '${rawFolderName}'.`);
 
       // Immediately scan the uploaded folder to load OK & NG images, piece index, defaultSlNo, and auto-print!
       scanInspectionFolder(finalPath);
@@ -731,6 +738,83 @@ export default function App() {
         nativeFolderInputRef.current.value = "";
       }
     }
+  }
+
+  async function handleLocalFilesSelect(e) {
+    const fileList = e?.target?.files || e?.files;
+    if (!fileList || fileList.length === 0) return;
+
+    const files = Array.from(fileList);
+    const imageFiles = files.filter((f) => /\.(png|jpe?g|svg|bmp|webp|tiff|gif)$/i.test(f.name));
+
+    if (imageFiles.length === 0) {
+      setError("⚠️ No valid camera images (.png, .jpg, .svg, .bmp) selected.");
+      if (nativeFileInputRef.current) nativeFileInputRef.current.value = "";
+      return;
+    }
+
+    const MAX_BATCH = 300;
+    const filesToUpload = imageFiles.length > MAX_BATCH ? imageFiles.slice(0, MAX_BATCH) : imageFiles;
+
+    const cleanFolderName = "Camera_Uploads";
+    const targetDisplayPath = `C:\\Inspection\\${cleanFolderName}`;
+
+    setSelectedFolder(targetDisplayPath);
+    setBrowseCurrentPath(targetDisplayPath);
+    setIsUploadingFolder(true);
+    setUploadProgress(`Uploading ${filesToUpload.length} camera inspection images...`);
+    setError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("folderName", cleanFolderName);
+
+      const relPaths = [];
+      filesToUpload.forEach((file) => {
+        formData.append("files", file);
+        relPaths.push(file.name);
+      });
+      formData.append("relativePathsJson", JSON.stringify(relPaths));
+
+      const res = await fetch(`${API}/folder/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Upload failed");
+      }
+
+      setIsUploadingFolder(false);
+      setUploadProgress("");
+      const finalPath = data.folderPath || targetDisplayPath;
+      setSelectedFolder(finalPath);
+      setBrowseCurrentPath(finalPath);
+      localStorage.setItem("hsi_last_folder", finalPath);
+
+      setSuccessMsg(`✅ Successfully loaded ${data.uploadedCount} camera inspection images ready for labeling.`);
+      scanInspectionFolder(finalPath);
+      openFolder(finalPath);
+    } catch (err) {
+      setIsUploadingFolder(false);
+      setUploadProgress("");
+      setError("Failed to upload camera files: " + err.message);
+    } finally {
+      if (nativeFileInputRef.current) {
+        nativeFileInputRef.current.value = "";
+      }
+    }
+  }
+
+  function handleDropFiles(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const dt = e.dataTransfer;
+    if (!dt) return;
+    const files = Array.from(dt.files || []);
+    if (!files.length) return;
+    handleLocalFilesSelect({ files });
   }
 
   function handleLogin(e, directCredentials) {
@@ -2879,6 +2963,43 @@ export default function App() {
                         </>
                       )}
                     </button>
+
+                    {/* Direct Image Files Picker */}
+                    <input
+                      type="file"
+                      ref={nativeFileInputRef}
+                      multiple
+                      accept="image/*,.png,.jpg,.jpeg,.svg,.bmp,.webp"
+                      style={{ display: "none" }}
+                      onChange={handleLocalFilesSelect}
+                    />
+                    <button
+                      type="button"
+                      className="drive-chip chip-pick-files"
+                      onClick={() => nativeFileInputRef.current?.click()}
+                      disabled={isUploadingFolder}
+                      title="Directly pick and inspect any camera image files (.png, .jpg, .svg) from any folder on your PC"
+                    >
+                      <Camera size={13} />
+                      <span>📷 Select Camera Images Directly</span>
+                    </button>
+
+                    {/* Quick Load Real Sample Inspection Run */}
+                    <button
+                      type="button"
+                      className="drive-chip chip-sample-run"
+                      onClick={() => {
+                        const p = "C:\\Inspection\\Sample_Camera_Run";
+                        setSelectedFolder(p);
+                        setBrowseCurrentPath(p);
+                        localStorage.setItem("hsi_last_folder", p);
+                        scanInspectionFolder(p);
+                      }}
+                      title="Quick load real camera inspection run (9 OK, 5 NG SVG parts)"
+                    >
+                      <Zap size={13} className="text-emerald" />
+                      <span>⚡ Quick Load Sample Run (14 Images)</span>
+                    </button>
                   </div>
                 </div>
 
@@ -3040,12 +3161,25 @@ export default function App() {
 
               <div className="images-scroll-area">
                 {okImages.length === 0 ? (
-                  <div className="no-images-state">
+                  <div
+                    className="no-images-state"
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={handleDropFiles}
+                  >
                     <CheckCircle2 size={36} className="text-muted" />
                     <p className="no-img-title">No OK Parts Detected Yet</p>
                     <p className="no-img-sub">
-                      Select or drop camera files here. Images with <code className="code-tag">_OK_</code> appear here ready for manual label printing.
+                      Select or drop camera files here. All valid inspection images (.png, .jpg, .svg) appear here ready for 100x30 barcode label printing.
                     </p>
+                    <button
+                      type="button"
+                      className="btn-dash-action"
+                      style={{ marginTop: "12px", background: "#059669", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "600" }}
+                      onClick={() => nativeFileInputRef.current?.click()}
+                    >
+                      <Camera size={14} />
+                      <span>Select Camera Images Directly</span>
+                    </button>
                   </div>
                 ) : (
                   <div className="image-cards-flow">
@@ -3144,11 +3278,15 @@ export default function App() {
 
               <div className="images-scroll-area">
                 {ngImages.length === 0 ? (
-                  <div className="no-images-state">
+                  <div
+                    className="no-images-state"
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={handleDropFiles}
+                  >
                     <XCircle size={36} className="text-muted" />
                     <p className="no-img-title">No Defective (NG) Images Detected</p>
                     <p className="no-img-sub">
-                      Images with <code className="code-tag">_NG_</code> or defect flags will be isolated here.
+                      Camera parts marked with defect flags (NG, defect, reject, fail) or in defect subfolders are automatically isolated here.
                     </p>
                   </div>
                 ) : (
