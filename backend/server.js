@@ -6,7 +6,8 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { execFile } = require("child_process");
-const QRCode = require("qrcode");
+// Barcode engine: bwip-js (ECC200 Data Matrix standard ISO/IEC 16022)
+const bwipjs = require("bwip-js");
 const multer = require("multer");
 const xlsx = require("xlsx");
 const archiver = require("archiver");
@@ -70,25 +71,50 @@ function buildCompositeCode({ prefix = "", partNo = "", slNo = "", modelNo = "",
   return `${p}${pn}${sl}${m}${alc}`;
 }
 
-// Generates pure vector SVG path for 2D QR Code (100% vector, instant, crisp, works on any printer)
-function generateQrVectorPath(text) {
-  if (!text) return { size: 21, path: "" };
+// Generates pure vector SVG path for 2D ECC200 Data Matrix (Automotive industry standard ISO/IEC 16022)
+function generateDataMatrixVector(text) {
+  if (!text) return { path: "", width: 72, height: 72, size: 72 };
   try {
-    const qr = QRCode.create(String(text), { errorCorrectionLevel: "M" });
-    const size = qr.modules.size;
-    const d = [];
-    for (let r = 0; r < size; r++) {
-      for (let c = 0; c < size; c++) {
-        if (qr.modules.get(r, c)) {
-          d.push(`M${c},${r}h1v1h-1z`);
-        }
-      }
-    }
-    return { size, path: d.join("") };
+    const rawSvg = bwipjs.toSVG({
+      bcid: "datamatrix",
+      text: String(text),
+      includetext: false,
+    });
+    const matchVb = rawSvg.match(/viewBox="0 0 (\d+) (\d+)"/);
+    const matchPath = rawSvg.match(/<path d="([^"]+)"/);
+    const w = matchVb ? parseInt(matchVb[1], 10) : 72;
+    const h = matchVb ? parseInt(matchVb[2], 10) : 72;
+    const d = matchPath ? matchPath[1] : "";
+    return { path: d, width: w, height: h, size: w };
   } catch (err) {
-    console.warn("QR vector generation error:", err);
-    return { size: 21, path: "" };
+    console.warn("DataMatrix vector generation error:", err.message);
+    return { path: "", width: 72, height: 72, size: 72 };
   }
+}
+
+// Generate high-resolution DataMatrix PNG buffer
+async function generateDataMatrixBuffer(text) {
+  try {
+    return await bwipjs.toBuffer({
+      bcid: "datamatrix",
+      text: String(text || "HSI"),
+      scale: 4,
+      includetext: false,
+    });
+  } catch (err) {
+    console.warn("DataMatrix buffer error:", err.message);
+    return Buffer.from("");
+  }
+}
+
+async function generateDataMatrixDataUrl(text) {
+  const buf = await generateDataMatrixBuffer(text);
+  return `data:image/png;base64,${buf.toString("base64")}`;
+}
+
+// Alias for backward compatibility
+function generateQrVectorPath(text) {
+  return generateDataMatrixVector(text);
 }
 
 function formatLocalDateTime(val) {
@@ -451,13 +477,9 @@ app.post("/api/labels/100x30", async (req, res) => {
   const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
 
   try {
-    // Generate high density 2D QR Code matching drawing
-    await QRCode.toFile(qrPath, compositeCode, {
-      width: 450,
-      margin: 1,
-      errorCorrectionLevel: "H",
-      color: { dark: "#000000", light: "#ffffff" },
-    });
+    // Generate high density 2D ECC200 Data Matrix matching automotive drawing
+    const dmBuffer = await generateDataMatrixBuffer(compositeCode);
+    await fs.promises.writeFile(qrPath, dmBuffer);
 
     const log = await insertLabelLog({
       slNo: String(sl_no),
@@ -472,7 +494,7 @@ app.post("/api/labels/100x30", async (req, res) => {
       printedBy: String(printed_by),
     });
 
-    const qrDataUrl = await QRCode.toDataURL(compositeCode, { width: 450, margin: 1 });
+    const qrDataUrl = await generateDataMatrixDataUrl(compositeCode);
 
     res.json({
       success: true,
@@ -498,12 +520,12 @@ app.post("/api/labels/100x30", async (req, res) => {
   }
 });
 
-// Fast QR Data URL helper
+// Fast Data Matrix Data URL helper
 app.get("/api/labels/qr-dataurl", async (req, res) => {
   const code = req.query.code || "";
   if (!code) return res.status(400).json({ error: "code query parameter is required" });
   try {
-    const dataUrl = await QRCode.toDataURL(code, { width: 450, margin: 1 });
+    const dataUrl = await generateDataMatrixDataUrl(code);
     res.json({ success: true, dataUrl });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -533,9 +555,9 @@ app.get("/api/labels/100x30/svg", async (req, res) => {
   });
 
   try {
-    const qrVector = generateQrVectorPath(compositeCode || effectivePart || alc_code || "HSI");
-    const qrScale = qrVector.size > 0 ? (198 / qrVector.size).toFixed(3) : "8";
-    const qrDataUrl = await QRCode.toDataURL(compositeCode || effectivePart || alc_code || "HSI", { width: 450, margin: 1 });
+    const qrVector = generateDataMatrixVector(compositeCode || effectivePart || alc_code || "HSI");
+    const qrScale = qrVector.size > 0 ? (198 / qrVector.size).toFixed(3) : "2.750";
+    const qrDataUrl = await generateDataMatrixDataUrl(compositeCode || effectivePart || alc_code || "HSI");
     const effectivePartName = part_name || effectivePart || "--";
 
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
@@ -584,10 +606,10 @@ app.get("/api/labels/100x30/svg", async (req, res) => {
   <!-- BOTTOM COMPOSITE BAR -->
   <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="24" font-weight="900" letter-spacing="0.8" fill="#000000" ${(compositeCode || "").length > 20 ? 'textLength="600" lengthAdjust="spacingAndGlyphs"' : ''}>${compositeCode || (effectivePart ? effectivePart + (sl_no ? " " + sl_no : "") : "--")}</text>
 
-  <!-- 2D QR CODE (PURE VECTOR SVG PATH - CRISP AT ANY DPI) -->
+  <!-- 2D DATA MATRIX (PURE VECTOR SVG PATH - CRISP AT ANY DPI) -->
   <rect x="714" y="22" width="198" height="198" fill="#ffffff" />
   <g transform="translate(714, 22) scale(${qrScale})">
-    <path d="${qrVector.path}" fill="#000000" shape-rendering="crispEdges" />
+    <path d="${qrVector.path}" fill="#000000" fill-rule="evenodd" shape-rendering="crispEdges" />
   </g>
 
   <!-- BATCH CODE -->
@@ -741,8 +763,9 @@ app.post("/api/watcher/start", async (req, res) => {
           if (isOk && watcherActiveConfig.autoPrint) {
             const qrFileName = `lbl_${sanitizeFileName(effectivePart)}_${pieceSlNo}_${Date.now()}.png`;
             const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
-            await QRCode.toFile(qrPath, compositeCode, { width: 450, margin: 1 });
-            const qrDataUrl = await QRCode.toDataURL(compositeCode, { width: 450, margin: 1 });
+            const dmBuffer = await generateDataMatrixBuffer(compositeCode);
+            await fs.promises.writeFile(qrPath, dmBuffer);
+            const qrDataUrl = await generateDataMatrixDataUrl(compositeCode);
 
             await insertLabelLog({
               slNo: pieceSlNo,
@@ -1542,12 +1565,8 @@ app.post("/api/folder/scan", async (req, res) => {
         const qrFileName = `lbl_100x30_${safePart}_${pieceSlNo}_${Date.now()}.png`;
         const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
         try {
-          await QRCode.toFile(qrPath, compositeCode, {
-            width: 450,
-            margin: 1,
-            errorCorrectionLevel: "H",
-            color: { dark: "#000000", light: "#ffffff" },
-          });
+          const dmBuf = await generateDataMatrixBuffer(compositeCode);
+          await fs.promises.writeFile(qrPath, dmBuf);
         } catch (e) {}
 
         await insertLabelLog({
@@ -1585,12 +1604,8 @@ app.post("/api/folder/scan", async (req, res) => {
       const qrFileName = `lbl_100x30_${safePart}_${pieceSlNo}_${Date.now()}.png`;
       const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
       try {
-        await QRCode.toFile(qrPath, compositeCode, {
-          width: 450,
-          margin: 1,
-          errorCorrectionLevel: "H",
-          color: { dark: "#000000", light: "#ffffff" },
-        });
+        const dmBuf = await generateDataMatrixBuffer(compositeCode);
+        await fs.promises.writeFile(qrPath, dmBuf);
       } catch (e) {}
 
       await insertLabelLog({
@@ -1748,11 +1763,8 @@ app.post("/api/labels/print-single", async (req, res) => {
   const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
 
   try {
-    await QRCode.toFile(qrPath, compositeCode || effectivePart || effectiveAlc || "HSI", {
-      width: 450,
-      margin: 1,
-      errorCorrectionLevel: "H",
-    });
+    const dmBuf = await generateDataMatrixBuffer(compositeCode || effectivePart || effectiveAlc || "HSI");
+    await fs.promises.writeFile(qrPath, dmBuf);
 
     const labelLog = await insertLabelLog({
       slNo: effectiveSlNo,
@@ -1772,7 +1784,7 @@ app.post("/api/labels/print-single", async (req, res) => {
       [folderPath, fileName, effectiveSlNo, compositeCode, effectiveModel, effectivePart, effectiveAlc, effectivePartName]
     );
 
-    const qrDataUrl = await QRCode.toDataURL(compositeCode || effectivePart || effectiveAlc || "HSI", { width: 450, margin: 1 });
+    const qrDataUrl = await generateDataMatrixDataUrl(compositeCode || effectivePart || effectiveAlc || "HSI");
     const host = req.get("host") || "localhost:5000";
     const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
 
@@ -1866,9 +1878,10 @@ app.post("/api/labels/print-batch", async (req, res) => {
     const qrFileName = `lbl_100x30_${safePart}_${pieceSlNo}_${Date.now()}_${Math.floor(Math.random()*1000)}.png`;
     const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
 
-    await QRCode.toFile(qrPath, pieceComposite, { width: 450, margin: 1, errorCorrectionLevel: "H" });
+    const dmBuf = await generateDataMatrixBuffer(pieceComposite);
+    await fs.promises.writeFile(qrPath, dmBuf);
 
-    const qrDataUrl = await QRCode.toDataURL(pieceComposite, { width: 450, margin: 1 });
+    const qrDataUrl = await generateDataMatrixDataUrl(pieceComposite);
 
     const labelLog = await insertLabelLog({
       slNo: pieceSlNo,

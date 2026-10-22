@@ -48,7 +48,7 @@ import {
   Edit3,
   Check,
 } from "lucide-react";
-import QRCode from "qrcode";
+import bwipjs from "bwip-js";
 import "./App.css";
 
 const rawApiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
@@ -113,25 +113,45 @@ function getPieceSerial(img, idx) {
   return String((idx !== undefined ? idx : 0) + 1).padStart(4, "0");
 }
 
-// Pure Vector QR Code Path Generator (100% synchronous, vector sharp, instant print preview)
-function generateQrVectorPath(text) {
-  if (!text) return { size: 21, path: "" };
+// Pure Vector ECC200 Data Matrix Generator (Automotive ISO/IEC 16022 standard, 100% synchronous, vector sharp)
+function generateDataMatrixVector(text) {
+  if (!text) return { size: 72, width: 72, height: 72, path: "" };
   try {
-    const qr = QRCode.create(String(text), { errorCorrectionLevel: "M" });
-    const size = qr.modules.size;
-    const d = [];
-    for (let r = 0; r < size; r++) {
-      for (let c = 0; c < size; c++) {
-        if (qr.modules.get(r, c)) {
-          d.push(`M${c},${r}h1v1h-1z`);
-        }
-      }
-    }
-    return { size, path: d.join("") };
+    const rawSvg = bwipjs.toSVG({
+      bcid: "datamatrix",
+      text: String(text),
+      includetext: false,
+    });
+    const matchVb = rawSvg.match(/viewBox="0 0 (\d+) (\d+)"/);
+    const matchPath = rawSvg.match(/<path d="([^"]+)"/);
+    const w = matchVb ? parseInt(matchVb[1], 10) : 72;
+    const h = matchVb ? parseInt(matchVb[2], 10) : 72;
+    const d = matchPath ? matchPath[1] : "";
+    return { size: w, width: w, height: h, path: d };
   } catch (err) {
-    console.warn("QR vector generation error:", err);
-    return { size: 21, path: "" };
+    console.warn("DataMatrix vector generation error:", err);
+    return { size: 72, width: 72, height: 72, path: "" };
   }
+}
+
+// Generate synchronous DataMatrix SVG Data URL
+function generateDataMatrixDataUrl(text) {
+  if (!text) return "";
+  try {
+    const rawSvg = bwipjs.toSVG({
+      bcid: "datamatrix",
+      text: String(text),
+      includetext: false,
+    });
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(rawSvg);
+  } catch (e) {
+    return "";
+  }
+}
+
+// Backward-compatible alias
+function generateQrVectorPath(text) {
+  return generateDataMatrixVector(text);
 }
 
 function sanitizePath(p) {
@@ -1644,11 +1664,11 @@ export default function App() {
   <!-- BOTTOM COMPOSITE BAR -->
   <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="24" font-weight="900" letter-spacing="0.8" fill="#000000" ${compAttr}>${effectiveCode}</text>
 
-  <!-- 2D QR CODE (PURE VECTOR SVG PATH - CRISP AT ANY DPI) -->
+  <!-- 2D DATA MATRIX (PURE VECTOR SVG PATH - CRISP AT ANY DPI) -->
   <rect x="714" y="22" width="198" height="198" fill="#ffffff" />
   ${qrVector.path ? `
   <g transform="translate(714, 22) scale(${qrScale})">
-    <path d="${qrVector.path}" fill="#000000" shape-rendering="crispEdges" />
+    <path d="${qrVector.path}" fill="#000000" fill-rule="evenodd" shape-rendering="crispEdges" />
   </g>` : (qrSrc ? `
   <image href="${qrSrc}" xlink:href="${qrSrc}" x="714" y="22" width="198" height="198" preserveAspectRatio="xMidYMid meet" />` : "")}
 
@@ -1692,11 +1712,7 @@ export default function App() {
 
     let qrSrc = label.qr_data_url || label.qr_url || "";
     if (!qrSrc && composite_code) {
-      try {
-        qrSrc = await QRCode.toDataURL(composite_code, { width: 350, margin: 1 });
-      } catch (e) {
-        console.error("QR creation error:", e);
-      }
+      qrSrc = generateDataMatrixDataUrl(composite_code);
     }
 
     const svgHtml = build100x30SvgString({
@@ -1814,9 +1830,7 @@ export default function App() {
 
       let qrSrc = lbl.qr_data_url || lbl.qr_url || "";
       if (!qrSrc && composite_code) {
-        try {
-          qrSrc = await QRCode.toDataURL(composite_code, { width: 350, margin: 1 });
-        } catch (e) {}
+        qrSrc = generateDataMatrixDataUrl(composite_code);
       }
 
       const svgHtml = build100x30SvgString({
@@ -1932,9 +1946,7 @@ export default function App() {
 
     let qrSrc = label.qr_data_url || label.qr_url || "";
     if (!qrSrc && composite_code) {
-      try {
-        qrSrc = await QRCode.toDataURL(composite_code, { width: 350, margin: 1 });
-      } catch (e) {}
+      qrSrc = generateDataMatrixDataUrl(composite_code);
     }
 
     const svgHtml = build100x30SvgString({
@@ -4678,7 +4690,7 @@ export default function App() {
                   <span className="badge-spec-full">Real Dynamic Data</span>
                 </div>
                 <p className="label-zoom-subtitle">
-                  Edit any input field below — the label, barcode string, and QR code update in real-time!
+                  Edit any input field below — the label, barcode string, and Data Matrix code update in real-time!
                 </p>
               </div>
               <button className="modal-x" onClick={() => setSelectedLabelModal(null)} title="Close">×</button>
@@ -5044,27 +5056,17 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
         });
 
   const qrVector = useMemo(() => {
-    return generateQrVectorPath(effectiveCompositeCode);
+    return generateDataMatrixVector(effectiveCompositeCode);
   }, [effectiveCompositeCode]);
 
   const [generatedQr, setGeneratedQr] = useState(qr_data_url || qr_url || "");
 
   useEffect(() => {
-    let active = true;
     if (qr_data_url || qr_url) {
       setGeneratedQr(qr_data_url || qr_url);
-      return;
+    } else if (effectiveCompositeCode) {
+      setGeneratedQr(generateDataMatrixDataUrl(effectiveCompositeCode));
     }
-    if (effectiveCompositeCode) {
-      QRCode.toDataURL(effectiveCompositeCode, { width: 350, margin: 1 })
-        .then((url) => {
-          if (active) setGeneratedQr(url);
-        })
-        .catch(() => {});
-    }
-    return () => {
-      active = false;
-    };
   }, [effectiveCompositeCode, qr_data_url, qr_url]);
 
   const qrSrc = generatedQr || qr_data_url || qr_url;
@@ -5293,11 +5295,11 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
           {effectiveCompositeCode}
         </text>
 
-        {/* ================= RIGHT SECTION: 2D QR CODE + BATCH CODE ================= */}
+        {/* ================= RIGHT SECTION: 2D DATA MATRIX + BATCH CODE ================= */}
         <rect x="714" y="22" width="198" height="198" fill="#ffffff" />
         {qrVector.path ? (
           <g transform={`translate(714, 22) scale(${qrVector.size > 0 ? (198 / qrVector.size) : 1})`}>
-            <path d={qrVector.path} fill="#000000" shapeRendering="crispEdges" />
+            <path d={qrVector.path} fill="#000000" fillRule="evenodd" shapeRendering="crispEdges" />
           </g>
         ) : qrSrc ? (
           <image
