@@ -228,6 +228,7 @@ async function insertLog({
   packQty,
   remark,
   printed,
+  slNo,
 }) {
   const isOk = status === "OK" || status === "PASS";
   const defPressure = pressure !== undefined && pressure !== null && pressure !== "" ? String(pressure) : (isOk ? "0.850" : "0.000");
