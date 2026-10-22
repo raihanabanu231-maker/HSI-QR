@@ -628,8 +628,13 @@ app.post("/api/watcher/start", async (req, res) => {
     return res.status(400).json({ error: "folderPath is required" });
   }
 
-  if (!fs.existsSync(folderPath)) {
-    return res.status(400).json({ error: `Directory does not exist on disk: ${folderPath}` });
+  const { realPath, displayPath } = resolveSystemPath(folderPath);
+  if (!fs.existsSync(realPath)) {
+    try {
+      fs.mkdirSync(realPath, { recursive: true });
+    } catch (e) {
+      return res.status(400).json({ error: `Directory does not exist on disk: ${displayPath}` });
+    }
   }
 
   if (activeFolderWatcher) {
@@ -639,7 +644,8 @@ app.post("/api/watcher/start", async (req, res) => {
     activeFolderWatcher = null;
   }
 
-  activeWatchedDir = folderPath;
+  seenFiles.clear();
+  activeWatchedDir = realPath;
   watcherActiveConfig = {
     model_no,
     part_no,
@@ -1226,12 +1232,13 @@ app.post("/api/folder/scan", async (req, res) => {
 
   const IGNORE_SCAN_DIRS = new Set([
     "node_modules", ".git", "$recycle.bin", "system volume information",
-    "windows", "program files", "program files (x86)", "appdata", "local settings"
+    "windows", "program files", "program files (x86)", "appdata", "local settings",
+    "application data", "cache", "temp", "tmp", "dist", "build"
   ]);
 
   function walk(dir, depth = 0) {
-    if (depth > 15) return; // Support deep nested camera hierarchies across any client folder
-    if (okFiles.length + ngFiles.length >= 1000) return; // Up to 1000 images per scan
+    if (depth > 5) return; // Keep factory scan focused & lightning-fast
+    if (okFiles.length + ngFiles.length >= 250) return;
 
     let entries;
     try {
@@ -1239,8 +1246,16 @@ app.post("/api/folder/scan", async (req, res) => {
     } catch (e) {
       return;
     }
+
+    // Process files directly in this folder first, then recurse subdirectories
+    entries.sort((a, b) => {
+      if (!a.isDirectory() && b.isDirectory()) return -1;
+      if (a.isDirectory() && !b.isDirectory()) return 1;
+      return 0;
+    });
+
     for (const entry of entries) {
-      if (okFiles.length + ngFiles.length >= 1000) break;
+      if (okFiles.length + ngFiles.length >= 250) break;
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         if (fullPath === QR_OUTPUT_DIR) continue;
@@ -1256,9 +1271,11 @@ app.post("/api/folder/scan", async (req, res) => {
         const nameOnly = path.parse(entry.name).name;
         const relDir = path.relative(cleanFolderPath, dir).toLowerCase();
 
-        // Check if explicitly marked as Defect (NG) via file name or subfolder
-        const isNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject|fail|bad|flaw|error/i.test(nameOnly) ||
-                     /(^|[^a-z0-9])ng([^a-z0-9]|$)|defect|reject|fail/i.test(relDir);
+        // Accurate classification: files containing "ok" are always OK; defect keywords mark NG
+        const isExplicitOk = /(^|[^a-z0-9])ok([^a-z0-9]|$)|_ok_|-ok-/i.test(nameOnly);
+        const isExplicitNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject|fail|bad|flaw|error|_ng_|-ng-/i.test(nameOnly) ||
+                             /(^|[^a-z0-9])ng([^a-z0-9]|$)|defect|reject|fail/i.test(relDir);
+        const isNg = isExplicitNg && !isExplicitOk;
 
         const host = req.get("host") || "localhost:5000";
         const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
@@ -1292,25 +1309,36 @@ app.post("/api/folder/scan", async (req, res) => {
 
   walk(cleanFolderPath, 0);
 
+  // Single batch database query to fetch all existing inspection records for this folder
+  const existingMap = new Map();
+  try {
+    const existingRes = await pool.query(
+      "SELECT id, file_name, printed, printed_at, sl_no, composite_code FROM logs WHERE folder_path = $1 OR folder_path = $2",
+      [folderPath, displayPath]
+    );
+    for (const r of existingRes.rows) {
+      existingMap.set(r.file_name, r);
+    }
+  } catch (e) {
+    console.warn("Batch log query warning:", e.message);
+  }
+
   const autoPrintedLabels = [];
 
-  // Process OK images: Log to database and auto-print one-by-one if autoPrint is true
+  // Process OK images using the in-memory map (0 blocking sequential DB roundtrips)
   for (const f of okFiles) {
-    const existing = await pool.query(
-      "SELECT id, printed, printed_at, sl_no, composite_code FROM logs WHERE folder_path = $1 AND file_name = $2 LIMIT 1",
-      [folderPath, f.name]
-    );
+    const existingRow = existingMap.get(f.name);
 
     let isPrinted = false;
     let printedAt = null;
     let savedSlNo = null;
     let savedComposite = null;
 
-    if (existing.rows.length > 0) {
-      isPrinted = !!existing.rows[0].printed;
-      printedAt = existing.rows[0].printed_at;
-      savedSlNo = existing.rows[0].sl_no;
-      savedComposite = existing.rows[0].composite_code;
+    if (existingRow) {
+      isPrinted = !!existingRow.printed;
+      printedAt = existingRow.printed_at;
+      savedSlNo = existingRow.sl_no;
+      savedComposite = existingRow.composite_code;
     }
 
     const pieceSlNo = savedSlNo || f.defaultSlNo;
@@ -1323,12 +1351,12 @@ app.post("/api/folder/scan", async (req, res) => {
       alcCode: alc_code,
     });
 
-    if (!existing.rows.length) {
-      // New inspection: log it
+    if (!existingRow) {
+      // New inspection: insert log without blocking the loop
       const shouldAutoPrint = !!autoPrint;
-      const newLog = await insertLog({
+      insertLog({
         folderName,
-        folderPath,
+        folderPath: displayPath,
         fileName: f.name,
         filePath: f.fullPath,
         status: "OK",
@@ -1341,7 +1369,7 @@ app.post("/api/folder/scan", async (req, res) => {
         shift: activeShift,
         remark: shouldAutoPrint ? "Camera Inspection: Verified OK (Auto-Printed)" : "Camera Inspection: Verified OK",
         printed: shouldAutoPrint,
-      });
+      }).catch((err) => console.warn("Background log insert error:", err.message));
 
       if (shouldAutoPrint) {
         isPrinted = true;

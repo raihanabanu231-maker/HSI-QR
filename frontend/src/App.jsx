@@ -2983,23 +2983,6 @@ export default function App() {
                       <Camera size={13} />
                       <span>📷 Select Camera Images Directly</span>
                     </button>
-
-                    {/* Quick Load Real Sample Inspection Run */}
-                    <button
-                      type="button"
-                      className="drive-chip chip-sample-run"
-                      onClick={() => {
-                        const p = "C:\\Inspection\\Sample_Camera_Run";
-                        setSelectedFolder(p);
-                        setBrowseCurrentPath(p);
-                        localStorage.setItem("hsi_last_folder", p);
-                        scanInspectionFolder(p);
-                      }}
-                      title="Quick load real camera inspection run (9 OK, 5 NG SVG parts)"
-                    >
-                      <Zap size={13} className="text-emerald" />
-                      <span>⚡ Quick Load Sample Run (14 Images)</span>
-                    </button>
                   </div>
                 </div>
 
