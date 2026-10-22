@@ -852,45 +852,24 @@ app.get("/api/labels/history", async (req, res) => {
 // ==========================================
 
 // ========================================================
-// VIRTUAL WINDOWS DRIVES (Ensures C:\ and D:\ always show)
+// REAL DISK PATH RESOLVER (Universal for ANY computer)
+// Directly navigates physical disk drives (C:\, D:\, etc.)
 // ========================================================
-const VIRTUAL_DRIVES_DIR = path.join(__dirname, "storage", "virtual_drives");
-
-function ensureVirtualDrives() {
-  const dirs = [
-    path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "DropZone"),
-    path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "OK_Images"),
-    path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "NG_Defects"),
-    path.join(VIRTUAL_DRIVES_DIR, "C", "CameraData"),
-    path.join(VIRTUAL_DRIVES_DIR, "C", "Program Files"),
-    path.join(VIRTUAL_DRIVES_DIR, "C", "Users", "Operator"),
-    path.join(VIRTUAL_DRIVES_DIR, "D", "VisionArchive"),
-    path.join(VIRTUAL_DRIVES_DIR, "D", "Backup"),
-    path.join(VIRTUAL_DRIVES_DIR, "D", "PlantReports"),
-  ];
-  dirs.forEach((d) => {
-    try {
-      fs.mkdirSync(d, { recursive: true });
-    } catch (e) {}
-  });
-}
-
-ensureVirtualDrives();
-
 function resolveSystemPath(inputPath) {
   if (!inputPath) {
-    return { realPath: path.join(VIRTUAL_DRIVES_DIR, "C"), displayPath: "C:\\" };
+    const defaultDrive = os.platform() === "win32" ? "C:\\" : os.homedir();
+    return { realPath: defaultDrive, displayPath: defaultDrive };
   }
   let raw = String(inputPath).trim();
   // Strip surrounding quotes if copied from Windows Explorer 'Copy as path'
   raw = raw.replace(/^["']+|["']+$/g, "").trim();
 
-  // If path is "/" or "\" on cloud, always map to "C:\"
+  // If path is "/" or "\" on cloud, map to default root
   if (raw === "/" || raw === "\\") {
-    raw = "C:\\";
+    raw = os.platform() === "win32" ? "C:\\" : "/";
   }
 
-  // Match Windows drive letter: e.g. "C:" or "C:\" or "C:\Inspection"
+  // Match Windows drive letter: e.g. "C:" or "C:\" or "D:\Images"
   const driveMatch = raw.match(/^([a-zA-Z]):(.*)/);
   if (driveMatch) {
     const letter = driveMatch[1].toUpperCase();
@@ -898,40 +877,23 @@ function resolveSystemPath(inputPath) {
     if (!sub.startsWith("\\")) sub = "\\" + sub;
     const displayPath = `${letter}:${sub === "\\" ? "\\" : sub}`;
 
-    // If on real Windows:
+    // On Windows, use real physical path directly on any computer
     if (os.platform() === "win32") {
-      try {
-        if (fs.existsSync(displayPath)) {
-          return { realPath: displayPath, displayPath };
-        }
-      } catch (e) {}
-
-      try {
-        if (fs.existsSync(`${letter}:\\`)) {
-          if (sub === "\\") {
-            return { realPath: `${letter}:\\`, displayPath: `${letter}:\\` };
-          }
-          try {
-            fs.mkdirSync(displayPath, { recursive: true });
-            return { realPath: displayPath, displayPath };
-          } catch (createErr) {}
-        }
-      } catch (e) {}
+      return { realPath: displayPath, displayPath };
     }
 
-    // On Linux or cloud (or if physical drive doesn't exist on disk):
-    // Map to virtual drive folder
+    // On Linux / Docker mock fallback if needed
+    const VIRTUAL_DRIVES_DIR = path.join(__dirname, "storage", "virtual_drives");
     const relParts = sub.split("\\").filter(Boolean);
     const realPath = path.join(VIRTUAL_DRIVES_DIR, letter, ...relParts);
     if (!fs.existsSync(realPath)) {
-      try {
-        fs.mkdirSync(realPath, { recursive: true });
-      } catch (e) {}
+      try { fs.mkdirSync(realPath, { recursive: true }); } catch (e) {}
     }
     return { realPath, displayPath };
   }
 
-  return { realPath: raw, displayPath: raw };
+  const normalized = path.normalize(raw);
+  return { realPath: normalized, displayPath: normalized };
 }
 
 // Stream an image directly so operator can see OK and Not OK images on screen!
@@ -958,22 +920,23 @@ app.get("/api/image-preview", (req, res) => {
   fs.createReadStream(realPath).pipe(res);
 });
 
-// Drives list: ALWAYS returns Windows C:\ and D:\
+// Drives list: Dynamically discovers all available drives on ANY computer
 app.get("/api/drives", (req, res) => {
   if (os.platform() === "win32") {
     const drives = [];
-    for (let i = 67; i <= 90; i++) {
+    for (let i = 65; i <= 90; i++) {
       const letter = String.fromCharCode(i) + ":\\";
       try {
-        fs.readdirSync(letter);
-        drives.push(letter);
+        if (fs.existsSync(letter)) {
+          drives.push(letter);
+        }
       } catch (e) {}
     }
-    if (drives.length === 0) drives.push("C:\\", "D:\\");
+    if (drives.length === 0) drives.push("C:\\");
     res.json({ drives });
   } else {
-    // Cloud / Linux environment: ALWAYS return C:\ and D:\
-    res.json({ drives: ["C:\\", "D:\\"] });
+    // Non-Windows environment
+    res.json({ drives: ["C:\\", "/"] });
   }
 });
 
@@ -1249,17 +1212,25 @@ app.get("/api/folder/locate", (req, res) => {
     } catch (e) {}
   }
 
-  // 2. Direct drive paths or common Windows locations
+  // 2. Direct drive paths or common user directories on this computer
   const candidates = [
-    path.join("D:\\", name),
-    path.join("C:\\", name),
     path.join(homedir, name),
     path.join(homedir, "Pictures", name),
     path.join(homedir, "Desktop", name),
     path.join(homedir, "Downloads", name),
-    path.join("C:\\LPSPOST", name),
-    path.join(homedir, "Pictures"),
+    path.join(homedir, "Documents", name),
   ];
+
+  if (os.platform() === "win32") {
+    for (let i = 65; i <= 90; i++) {
+      const drive = String.fromCharCode(i) + ":\\";
+      try {
+        if (fs.existsSync(drive)) {
+          candidates.push(path.join(drive, name));
+        }
+      } catch (e) {}
+    }
+  }
 
   for (const c of candidates) {
     try {
@@ -1269,8 +1240,18 @@ app.get("/api/folder/locate", (req, res) => {
     } catch (e) {}
   }
 
-  // 3. Search up to 2 levels deep in D:\ and C:\
-  for (const root of ["D:\\", path.join(homedir, "Pictures"), "C:\\LPSPOST", "C:\\"]) {
+  // 3. Search up to 2 levels deep in detected drive roots & user folders
+  const searchRoots = [path.join(homedir, "Pictures"), path.join(homedir, "Desktop"), path.join(homedir, "Downloads")];
+  if (os.platform() === "win32") {
+    for (let i = 65; i <= 90; i++) {
+      const drive = String.fromCharCode(i) + ":\\";
+      try {
+        if (fs.existsSync(drive)) searchRoots.push(drive);
+      } catch (e) {}
+    }
+  }
+
+  for (const root of searchRoots) {
     try {
       if (!fs.existsSync(root)) continue;
       const subs = fs.readdirSync(root, { withFileTypes: true });
@@ -1293,7 +1274,7 @@ app.get("/api/folder/locate", (req, res) => {
   }
 
   // 4. Logical path fallback
-  const fallbackPath = current ? path.join(current, name) : path.join("D:\\", name);
+  const fallbackPath = current ? path.join(current, name) : (os.platform() === "win32" ? path.join("C:\\", name) : path.join(homedir, name));
   res.json({ found: false, suggestedPath: fallbackPath });
 });
 
