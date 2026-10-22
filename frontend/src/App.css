@@ -3957,6 +3957,84 @@ body {
   background: linear-gradient(135deg, #047857, #065f46);
 }
 
+.direct-print-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+}
+
+.badge-direct-auto-printed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #15803d;
+}
+
+.btn-subtle-reprint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #86efac;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #166534;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-subtle-reprint:hover {
+  background: #dcfce7;
+  border-color: #4ade80;
+}
+
+.ok-banner-status-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge-all-direct-printed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #065f46;
+  background: #ecfdf5;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #a7f3d0;
+}
+
+.btn-subtle-reprint-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #6ee7b7;
+  border-radius: 4px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #047857;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-subtle-reprint-all:hover {
+  background: #d1fae5;
+}
+
 .banner-actions-right {
   display: flex;
   align-items: center;

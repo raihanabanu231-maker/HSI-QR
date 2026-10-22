@@ -1161,7 +1161,7 @@ app.post("/api/folder/upload", folderUpload.array("files", 1000), async (req, re
 
     const rawFolderName = req.body.folderName || "Local_Inspection";
     const cleanFolderName = sanitizeFileName(rawFolderName) || "Inspection";
-    const targetDisplayPath = `C:\\Inspection\\${cleanFolderName}`;
+    const targetDisplayPath = req.body.folderPath || (req.body.current ? path.join(req.body.current, cleanFolderName) : `C:\\Inspection\\${cleanFolderName}`);
     const { realPath, displayPath } = resolveSystemPath(targetDisplayPath);
 
     // If uploading a new batch of selected files, wipe out any old files in this folder first
@@ -1221,14 +1221,80 @@ app.post("/api/folder/upload", folderUpload.array("files", 1000), async (req, re
 
     res.json({
       success: true,
-      folderPath: displayPath,
+      folderPath: targetDisplayPath,
       uploadedCount: savedCount,
-      message: `Successfully loaded ${savedCount} inspection images to ${displayPath}`,
+      message: `Successfully loaded ${savedCount} inspection images to ${targetDisplayPath}`,
     });
   } catch (err) {
     console.error("Folder upload error:", err);
     res.status(500).json({ error: "Failed to upload inspection folder: " + err.message });
   }
+});
+
+// Locate real physical Windows path for a selected folder name (e.g. Pictures -> C:\Users\user\Pictures, Data -> D:\Data)
+app.get("/api/folder/locate", (req, res) => {
+  const name = String(req.query.name || "").trim();
+  const current = String(req.query.current || "").trim();
+  if (!name) return res.json({ found: false });
+
+  const homedir = os.homedir();
+
+  // 1. Direct subfolder of current browsing directory
+  if (current) {
+    try {
+      const cp = path.join(current, name);
+      if (fs.existsSync(cp)) {
+        return res.json({ found: true, path: cp });
+      }
+    } catch (e) {}
+  }
+
+  // 2. Direct drive paths or common Windows locations
+  const candidates = [
+    path.join("D:\\", name),
+    path.join("C:\\", name),
+    path.join(homedir, name),
+    path.join(homedir, "Pictures", name),
+    path.join(homedir, "Desktop", name),
+    path.join(homedir, "Downloads", name),
+    path.join("C:\\LPSPOST", name),
+    path.join(homedir, "Pictures"),
+  ];
+
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c)) {
+        return res.json({ found: true, path: c });
+      }
+    } catch (e) {}
+  }
+
+  // 3. Search up to 2 levels deep in D:\ and C:\
+  for (const root of ["D:\\", path.join(homedir, "Pictures"), "C:\\LPSPOST", "C:\\"]) {
+    try {
+      if (!fs.existsSync(root)) continue;
+      const subs = fs.readdirSync(root, { withFileTypes: true });
+      for (const s of subs) {
+        if (!s.isDirectory()) continue;
+        if (s.name.toLowerCase() === name.toLowerCase()) {
+          return res.json({ found: true, path: path.join(root, s.name) });
+        }
+        try {
+          const subPath = path.join(root, s.name);
+          const deeper = fs.readdirSync(subPath, { withFileTypes: true });
+          for (const d of deeper) {
+            if (d.isDirectory() && d.name.toLowerCase() === name.toLowerCase()) {
+              return res.json({ found: true, path: path.join(subPath, d.name) });
+            }
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
+
+  // 4. Logical path fallback
+  const fallbackPath = current ? path.join(current, name) : path.join("D:\\", name);
+  res.json({ found: false, suggestedPath: fallbackPath });
 });
 
 // Scan folder for OK and Not OK (NG) images + Auto-Print label for OK images!

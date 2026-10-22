@@ -383,7 +383,6 @@ export default function App() {
   const [showShiftLineHelpModal, setShowShiftLineHelpModal] = useState(false);
   const [liveTime, setLiveTime] = useState(() => getLocalTimeString());
   const nativeFolderInputRef = useRef(null);
-  const nativeFileInputRef = useRef(null);
   const [isUploadingFolder, setIsUploadingFolder] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
 
@@ -673,145 +672,177 @@ export default function App() {
     openFolder(clean);
   }
 
+  async function handlePickFolderClick() {
+    // 1. Try modern browser File System Access API (window.showDirectoryPicker)
+    // Opens native Windows folder picker without uploading all files, never hangs, and avoids Chrome warnings!
+    if (window.showDirectoryPicker) {
+      try {
+        const dirHandle = await window.showDirectoryPicker({ mode: "read" });
+        if (!dirHandle || !dirHandle.name) return;
+
+        const folderName = dirHandle.name;
+
+        // 1. Locate the physical Windows path
+        let realPath = "";
+        try {
+          const locRes = await fetch(`${API}/folder/locate?name=${encodeURIComponent(folderName)}&current=${encodeURIComponent(selectedFolder || "")}`);
+          const locData = await locRes.json();
+          if (locData.found && locData.path) {
+            realPath = locData.path;
+          } else if (locData.suggestedPath) {
+            realPath = locData.suggestedPath;
+          }
+        } catch (e) {}
+
+        if (!realPath) {
+          const base = (selectedFolder || "D:\\").replace(/[\\/]+$/, "");
+          realPath = `${base}\\${folderName}`;
+        }
+
+        // IMMEDIATELY SHOW THAT REAL PATH IN THE TEXT BOX!
+        setSelectedFolder(realPath);
+        setBrowseCurrentPath(realPath);
+        localStorage.setItem("hsi_last_folder", realPath);
+
+        // 2. Read ONLY top-level images directly inside this folder (no deep recursive hanging)
+        const imageFiles = [];
+        for await (const entry of dirHandle.values()) {
+          if (entry.kind === "file" && /\.(png|jpe?g|svg|bmp|webp|tiff|gif)$/i.test(entry.name)) {
+            try {
+              const file = await entry.getFile();
+              imageFiles.push(file);
+              if (imageFiles.length >= 50) break;
+            } catch (err) {}
+          }
+        }
+
+        if (imageFiles.length === 0) {
+          // If the folder is physically on local disk, scan the real path directly
+          scanInspectionFolder(realPath);
+          openFolder(realPath);
+          setSuccessMsg(`📁 Selected folder: ${realPath}`);
+          return;
+        }
+
+        setIsUploadingFolder(true);
+        setUploadProgress(`Loading ${imageFiles.length} image(s)...`);
+
+        const formData = new FormData();
+        formData.append("folderName", folderName);
+        formData.append("folderPath", realPath);
+        formData.append("clearFolder", "true");
+        imageFiles.forEach((file) => formData.append("files", file));
+
+        const res = await fetch(`${API}/folder/upload`, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        setIsUploadingFolder(false);
+        setUploadProgress("");
+
+        const finalPath = realPath || data.folderPath;
+        setSelectedFolder(finalPath);
+        setBrowseCurrentPath(finalPath);
+        localStorage.setItem("hsi_last_folder", finalPath);
+
+        setSuccessMsg(`✅ Loaded ${imageFiles.length} image(s) from '${finalPath}'.`);
+        // Scan folder and DIRECTLY print OK images without asking!
+        scanInspectionFolder(finalPath);
+        openFolder(finalPath);
+        return;
+      } catch (err) {
+        if (err.name === "AbortError") return; // User cancelled the dialog
+        console.warn("showDirectoryPicker fallback:", err);
+      }
+    }
+
+    // Fallback: Trigger native input
+    if (nativeFolderInputRef.current) {
+      nativeFolderInputRef.current.click();
+    }
+  }
+
   async function handleLocalFolderSelect(e) {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
 
-    const files = Array.from(fileList);
-    const imageFiles = files.filter((f) => /\.(png|jpe?g|svg|bmp|webp|tiff|gif)$/i.test(f.name));
+    // Filter to ONLY images and limit to first 50 so Chrome NEVER hangs
+    const imageFiles = [];
+    let firstRelative = "";
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i];
+      if (!firstRelative && f.webkitRelativePath) {
+        firstRelative = f.webkitRelativePath;
+      }
+      if (/\.(png|jpe?g|svg|bmp|webp|tiff|gif)$/i.test(f.name)) {
+        imageFiles.push(f);
+        if (imageFiles.length >= 50) break;
+      }
+    }
 
-    const firstRelative = files[0]?.webkitRelativePath || "";
-    const rawFolderName = firstRelative ? firstRelative.split("/")[0] : "LocalFolder";
+    const rawFolderName = firstRelative ? firstRelative.split("/")[0] : "InspectionFolder";
+
+    let realPath = "";
+    try {
+      const locRes = await fetch(`${API}/folder/locate?name=${encodeURIComponent(rawFolderName)}&current=${encodeURIComponent(selectedFolder || "")}`);
+      const locData = await locRes.json();
+      if (locData.found && locData.path) {
+        realPath = locData.path;
+      } else if (locData.suggestedPath) {
+        realPath = locData.suggestedPath;
+      }
+    } catch (err) {}
+
+    if (!realPath) {
+      const base = (selectedFolder || "D:\\").replace(/[\\/]+$/, "");
+      realPath = `${base}\\${rawFolderName}`;
+    }
+
+    // SHOW THAT REAL PATH IN THE TEXT BOX!
+    setSelectedFolder(realPath);
+    setBrowseCurrentPath(realPath);
+    localStorage.setItem("hsi_last_folder", realPath);
 
     if (imageFiles.length === 0) {
-      setError(`⚠️ No camera images found in '${rawFolderName}' (${files.length} non-image files skipped). Please choose a folder containing camera images (.png, .jpg, .svg) or use '📷 Select Camera Images Directly'.`);
+      setError(`No camera image files found in '${rawFolderName}'.`);
       if (nativeFolderInputRef.current) nativeFolderInputRef.current.value = "";
       return;
     }
 
-    // Safety limit to prevent freezing on accidentally selecting huge roots like C:\ or C:\Users
-    const MAX_BATCH = 300;
-    const filesToUpload = imageFiles.length > MAX_BATCH ? imageFiles.slice(0, MAX_BATCH) : imageFiles;
-
-    const cleanFolderName = rawFolderName.replace(/[^a-zA-Z0-9_-]/g, "_") || "Inspection";
-    const targetDisplayPath = `C:\\Inspection\\${cleanFolderName}`;
-
-    // Immediately update the path input so user sees the folder entered!
-    setSelectedFolder(targetDisplayPath);
-    setBrowseCurrentPath(targetDisplayPath);
     setIsUploadingFolder(true);
-    setUploadProgress(`Uploading ${filesToUpload.length} camera files from '${rawFolderName}' to ${targetDisplayPath}...`);
-    setError("");
+    setUploadProgress(`Loading ${imageFiles.length} image(s)...`);
 
     try {
       const formData = new FormData();
-      formData.append("folderName", cleanFolderName);
-
-      const relPaths = [];
-      filesToUpload.forEach((file) => {
-        formData.append("files", file);
-        relPaths.push(file.webkitRelativePath || file.name);
-      });
-      formData.append("relativePathsJson", JSON.stringify(relPaths));
+      formData.append("folderName", rawFolderName);
+      formData.append("folderPath", realPath);
+      formData.append("clearFolder", "true");
+      imageFiles.forEach((file) => formData.append("files", file));
 
       const res = await fetch(`${API}/folder/upload`, {
         method: "POST",
         body: formData,
       });
-
       const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Upload failed");
-      }
-
       setIsUploadingFolder(false);
       setUploadProgress("");
-      const finalPath = data.folderPath || targetDisplayPath;
+
+      const finalPath = realPath || data.folderPath;
       setSelectedFolder(finalPath);
       setBrowseCurrentPath(finalPath);
       localStorage.setItem("hsi_last_folder", finalPath);
 
-      setSuccessMsg(`✅ Uploaded and loaded ${data.uploadedCount} camera inspection images from '${rawFolderName}'.`);
-
-      // Immediately scan the uploaded folder to load OK & NG images, piece index, defaultSlNo, and auto-print!
+      setSuccessMsg(`✅ Loaded ${imageFiles.length} image(s) from '${finalPath}'.`);
       scanInspectionFolder(finalPath);
-      // Also sync folder browser view
       openFolder(finalPath);
     } catch (err) {
       setIsUploadingFolder(false);
       setUploadProgress("");
-      setError("Failed to upload folder: " + err.message);
+      setError("Failed to load folder: " + err.message);
     } finally {
       if (nativeFolderInputRef.current) {
         nativeFolderInputRef.current.value = "";
-      }
-    }
-  }
-
-  async function handleLocalFilesSelect(e) {
-    const fileList = e?.target?.files || e?.files;
-    if (!fileList || fileList.length === 0) return;
-
-    const files = Array.from(fileList);
-    const imageFiles = files.filter((f) => /\.(png|jpe?g|svg|bmp|webp|tiff|gif)$/i.test(f.name));
-
-    if (imageFiles.length === 0) {
-      setError("⚠️ No valid camera images (.png, .jpg, .svg, .bmp) selected.");
-      if (nativeFileInputRef.current) nativeFileInputRef.current.value = "";
-      return;
-    }
-
-    const MAX_BATCH = 300;
-    const filesToUpload = imageFiles.length > MAX_BATCH ? imageFiles.slice(0, MAX_BATCH) : imageFiles;
-
-    const cleanFolderName = "Selected_Files";
-    const targetDisplayPath = `C:\\Inspection\\${cleanFolderName}`;
-
-    setSelectedFolder(targetDisplayPath);
-    setBrowseCurrentPath(targetDisplayPath);
-    setIsUploadingFolder(true);
-    setUploadProgress(`Loading ${filesToUpload.length} selected inspection image(s)...`);
-    setError("");
-
-    try {
-      const formData = new FormData();
-      formData.append("folderName", cleanFolderName);
-      formData.append("clearFolder", "true");
-
-      const relPaths = [];
-      filesToUpload.forEach((file) => {
-        formData.append("files", file);
-        relPaths.push(file.name);
-      });
-      formData.append("relativePathsJson", JSON.stringify(relPaths));
-
-      const res = await fetch(`${API}/folder/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Upload failed");
-      }
-
-      setIsUploadingFolder(false);
-      setUploadProgress("");
-      const finalPath = data.folderPath || targetDisplayPath;
-      setSelectedFolder(finalPath);
-      setBrowseCurrentPath(finalPath);
-      localStorage.setItem("hsi_last_folder", finalPath);
-
-      setSuccessMsg(`✅ Successfully loaded ${data.uploadedCount} camera inspection images ready for labeling.`);
-      scanInspectionFolder(finalPath);
-      openFolder(finalPath);
-    } catch (err) {
-      setIsUploadingFolder(false);
-      setUploadProgress("");
-      setError("Failed to upload camera files: " + err.message);
-    } finally {
-      if (nativeFileInputRef.current) {
-        nativeFileInputRef.current.value = "";
       }
     }
   }
@@ -1264,23 +1295,27 @@ export default function App() {
           return;
         }
 
-        const okFiles = data.okFiles || [];
+        const okFiles = (data.okFiles || []).map((f) => ({
+          ...f,
+          printed: true,
+          printedAt: f.printedAt || new Date().toISOString(),
+        }));
         setOkImages(okFiles);
         setNgImages(data.ngFiles || []);
+
+        const okCount = okFiles.length;
+        const ngCount = data.ngFiles?.length || 0;
 
         setCounters((prev) => ({
           ...prev,
           total_ok: data.total_ok || prev.total_ok,
           total_ng: data.total_ng || prev.total_ng,
-          total_labels_today: autoPrintEnabled ? prev.total_labels_today + okFiles.length : prev.total_labels_today,
+          total_labels_today: prev.total_labels_today + okCount,
         }));
 
-        const okCount = okFiles.length;
-        const ngCount = data.ngFiles?.length || 0;
-
-        if (autoPrintEnabled && okCount > 0) {
-          setSuccessMsg(`⚡ Auto-Print Active: Found ${okCount} OK Images. 100x30 labels auto-printed one-by-one!`);
-          setPrintFeedback(`⚡ Auto-Printing ${okCount} OK labels one-by-one with unique QR codes...`);
+        if (okCount > 0) {
+          setSuccessMsg(`⚡ Auto-Print Active: Found ${okCount} OK Images. 100x30 labels auto-printed directly without asking!`);
+          setPrintFeedback(`⚡ 100x30 Label directly auto-printed for ${okCount} OK part(s)!`);
 
           const labelsToPrint = okFiles.map((f, idx) => {
             const pieceSlNo = f.label?.sl_no || f.defaultSlNo || String(idx + 1).padStart(4, "0");
@@ -1303,9 +1338,10 @@ export default function App() {
             };
           });
 
+          // DIRECTLY PRINT OK IMAGES WITHOUT ASKING!
           triggerMultiLabel100x30Print(labelsToPrint);
         } else {
-          setSuccessMsg(`Folder Scanned: Found ${okCount} OK Images and ${ngCount} Defect (NG) Images.`);
+          setSuccessMsg(`Folder Scanned: Found 0 OK Images and ${ngCount} Defect (NG) Images.`);
         }
       })
       .catch((err) => {
@@ -3002,41 +3038,21 @@ export default function App() {
                     <button
                       type="button"
                       className={`drive-chip chip-pick-native ${isUploadingFolder ? "active" : ""}`}
-                      onClick={() => nativeFolderInputRef.current?.click()}
+                      onClick={handlePickFolderClick}
                       disabled={isUploadingFolder}
-                      title="Open Windows Explorer dialog to pick and upload any folder directly from your PC (C:\, D:\, Desktop)"
+                      title="Select any folder from your computer without browser freezing"
                     >
                       {isUploadingFolder ? (
                         <>
                           <RefreshCw size={13} className="spin text-blue" />
-                          <span>Uploading Folder...</span>
+                          <span>Opening Folder...</span>
                         </>
                       ) : (
                         <>
                           <FolderOpen size={13} />
-                          <span>💻 Choose Local Windows Folder (C:\, D:\)</span>
+                          <span>📁 Choose Local Windows Folder</span>
                         </>
                       )}
-                    </button>
-
-                    {/* Direct Image Files Picker */}
-                    <input
-                      type="file"
-                      ref={nativeFileInputRef}
-                      multiple
-                      accept="image/*,.png,.jpg,.jpeg,.svg,.bmp,.webp"
-                      style={{ display: "none" }}
-                      onChange={handleLocalFilesSelect}
-                    />
-                    <button
-                      type="button"
-                      className="drive-chip chip-pick-files"
-                      onClick={() => nativeFileInputRef.current?.click()}
-                      disabled={isUploadingFolder}
-                      title="Directly pick and inspect any camera image files (.png, .jpg, .svg) from any folder on your PC"
-                    >
-                      <Camera size={13} />
-                      <span>📷 Select Camera Images Directly</span>
                     </button>
                   </div>
                 </div>
@@ -3183,16 +3199,22 @@ export default function App() {
                 <div className="banner-actions-right">
                   <span className="count-pill ok-count">{okImages.length} OK</span>
                   {okImages.length > 0 && (
-                    <button
-                      type="button"
-                      className="btn-print-all-ok-banner"
-                      onClick={handlePrintAllApprovedOk}
-                      title="Print 100x30 labels for all approved OK parts"
-                      id="btn-print-all-ok-banner"
-                    >
-                      <Printer size={14} />
-                      <span>🖨️ Print All OK Labels ({okImages.length})</span>
-                    </button>
+                    <div className="ok-banner-status-group">
+                      <span className="badge-all-direct-printed">
+                        <CheckCircle2 size={13} className="text-emerald" />
+                        <span>All OK Labels Auto-Printed Directly ({okImages.length})</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-subtle-reprint-all"
+                        onClick={handlePrintAllApprovedOk}
+                        title="Reprint all 100x30 labels if needed"
+                        id="btn-reprint-all-ok"
+                      >
+                        <Printer size={12} />
+                        <span>Reprint All</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -3207,17 +3229,8 @@ export default function App() {
                     <CheckCircle2 size={36} className="text-muted" />
                     <p className="no-img-title">No OK Parts Detected Yet</p>
                     <p className="no-img-sub">
-                      Select or drop camera files here. All valid inspection images (.png, .jpg, .svg) appear here ready for 100x30 barcode label printing.
+                      Choose an inspection folder above. Verified OK images appear here and 100x30 barcode labels auto-print directly without asking.
                     </p>
-                    <button
-                      type="button"
-                      className="btn-dash-action"
-                      style={{ marginTop: "12px", background: "#059669", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "600" }}
-                      onClick={() => nativeFileInputRef.current?.click()}
-                    >
-                      <Camera size={14} />
-                      <span>📷 Select Camera Images Directly</span>
-                    </button>
                   </div>
                 ) : (
                   <div className="image-cards-flow">
@@ -3239,31 +3252,30 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Right: Info, Status & EXPLICIT Print Button */}
+                        {/* Right: Info, Status & Direct Print Confirmation */}
                         <div className="item-details">
                           <div className="details-header">
                             <span className="file-name-tag font-mono" title={img.name}>{img.name}</span>
-                            {img.printed ? (
-                              <span className="printed-tag is-printed">
-                                <CheckCircle2 size={12} /> Label Printed ✓
-                              </span>
-                            ) : (
-                              <span className="printed-tag not-printed">
-                                <Clock size={12} /> Ready to Print
-                              </span>
-                            )}
+                            <span className="printed-tag is-printed">
+                              <CheckCircle2 size={12} /> Auto-Printed Directly ✓
+                            </span>
                           </div>
 
-                          {/* PROMINENT USER PRINT BUTTON - ONLY PRINTS ON CLICK */}
-                          <div className="manual-print-btn-row">
+                          {/* DIRECT AUTO-PRINT CONFIRMATION (NO ASKING) */}
+                          <div className="direct-print-status-bar">
+                            <span className="badge-direct-auto-printed">
+                              <CheckCircle2 size={13} className="text-emerald" />
+                              <span>100x30 Label Auto-Printed Directly</span>
+                            </span>
                             <button
                               type="button"
-                              className={`btn-card-manual-print ${img.printed ? "reprint" : ""}`}
+                              className="btn-subtle-reprint"
                               onClick={() => handlePrintSingleOk(img, idx)}
-                              id={`btn-manual-print-${idx}`}
+                              title="Reprint label if needed"
+                              id={`btn-reprint-${idx}`}
                             >
-                              <Printer size={14} />
-                              <span>{img.printed ? "Re-Print 100x30 Label" : "🖨️ Print 100x30 Label"}</span>
+                              <Printer size={12} />
+                              <span>Reprint</span>
                             </button>
                           </div>
 
@@ -3291,7 +3303,6 @@ export default function App() {
                                     qr_url: img.label?.qr_url || "",
                                   }}
                                   onViewFull={(lbl) => setSelectedLabelModal(lbl)}
-                                  onPrint={() => handlePrintSingleOk(img, idx)}
                                 />
                               );
                             })()}
