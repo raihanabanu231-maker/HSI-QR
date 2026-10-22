@@ -2856,7 +2856,7 @@ export default function App() {
               <div className="terminal-status-bar">
                 <div className="status-meta">
                   <span className="station-dot pulse"></span>
-                  <span className="station-title">CAMERA INSPECTION LIVE</span>
+                  <span className="station-title">AUTOMATED VISION INSPECTION</span>
                   <span className="station-pill">{selectedModel || "--"}</span>
                   <span className="station-pill">{specs.motherPartNo !== "--" ? specs.motherPartNo : "--"}</span>
                   <span className="station-pill alc">{specs.targetAlcCode !== "--" ? specs.targetAlcCode : "--"}</span>
@@ -3190,9 +3190,7 @@ export default function App() {
                   <div>
                     <h3>OK Images (Approved)</h3>
                     <span className="banner-hint" style={{ fontSize: "11px", color: "#a7f3d0", display: "block" }}>
-                      {autoPrintEnabled
-                        ? "⚡ Auto-Print ACTIVE: Labels print one-by-one automatically for each verified OK part."
-                        : "Manual Print Mode: Vision Passed. Labels print when you click 'Print Label' below."}
+                      ⚡ Auto-Print Active: 100x30 Labels print directly for each verified OK part without asking.
                     </span>
                   </div>
                 </div>
@@ -5282,20 +5280,6 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             >
               <Maximize2 size={12} />
               <span>Full View</span>
-            </button>
-          )}
-          {onPrint && (
-            <button
-              type="button"
-              className="btn-print-label-chip"
-              onClick={(e) => {
-                e.stopPropagation();
-                onPrint();
-              }}
-              title="Print this 100x30mm thermal label"
-            >
-              <Printer size={12} />
-              <span>Print 100x30</span>
             </button>
           )}
         </div>
