@@ -553,36 +553,36 @@ app.get("/api/labels/100x30/svg", async (req, res) => {
 
   <!-- COL 1: SL NO -->
   <g transform="translate(78.3, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">SL NO</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(sl_no).length > 6 ? 26 : 34}" font-weight="900" letter-spacing="0.5" fill="#000000" ${String(sl_no).length > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : ''}>${sl_no || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">SL NO</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(sl_no).length > 4 ? 16 : 20}" font-weight="900" letter-spacing="0.4" fill="#000000">${sl_no || ""}</text>
   </g>
 
   <!-- COL 2: MODEL -->
   <g transform="translate(204.9, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">MODEL</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(model_no || "").length > 9 ? 21 : String(model_no || "").length > 6 ? 26 : 32}" font-weight="900" letter-spacing="0.4" fill="#000000" ${String(model_no || "").length > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : ''}>${model_no || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">MODEL</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(model_no || '').length > 6 ? 15 : 18}" font-weight="900" letter-spacing="0.3" fill="#000000">${model_no || ""}</text>
   </g>
 
   <!-- COL 3: PART NO -->
   <g transform="translate(331.5, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">PART NO</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectivePart || "").length > 12 ? 19 : String(effectivePart || "").length > 9 ? 21 : String(effectivePart || "").length > 6 ? 25 : 30}" font-weight="900" letter-spacing="0.3" fill="#000000" ${String(effectivePart || "").length > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePart || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">PART NO</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectivePart || '').length > 9 ? 14.5 : 16}" font-weight="900" letter-spacing="0.2" fill="#000000" ${String(effectivePart || '').length > 7 ? 'textLength="92" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePart || ""}</text>
   </g>
 
   <!-- COL 4: PART NAME -->
   <g transform="translate(458.1, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">PART NAME</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectivePartName || "").length > 12 ? 19 : String(effectivePartName || "").length > 9 ? 21 : String(effectivePartName || "").length > 6 ? 25 : 30}" font-weight="900" letter-spacing="0.2" fill="#000000" ${String(effectivePartName || "").length > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePartName || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">PART NAME</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.1" fill="#000000" ${String(effectivePartName || '').length > 7 ? 'textLength="90" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePartName || ""}</text>
   </g>
 
   <!-- COL 5: ALC CODE -->
   <g transform="translate(584.7, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">ALC CODE</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(alc_code || "").length > 6 ? 26 : 34}" font-weight="900" letter-spacing="0.5" fill="#000000" ${String(alc_code || "").length > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : ''}>${alc_code || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">ALC CODE</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.5" fill="#000000">${alc_code || ""}</text>
   </g>
 
   <!-- BOTTOM COMPOSITE BAR -->
-  <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="30" font-weight="900" letter-spacing="0.8" fill="#000000" ${(compositeCode || "").length > 20 ? 'textLength="600" lengthAdjust="spacingAndGlyphs"' : ''}>${compositeCode || (effectivePart ? effectivePart + (sl_no ? " " + sl_no : "") : "--")}</text>
+  <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="24" font-weight="900" letter-spacing="0.8" fill="#000000" ${(compositeCode || "").length > 20 ? 'textLength="600" lengthAdjust="spacingAndGlyphs"' : ''}>${compositeCode || (effectivePart ? effectivePart + (sl_no ? " " + sl_no : "") : "--")}</text>
 
   <!-- 2D QR CODE (PURE VECTOR SVG PATH - CRISP AT ANY DPI) -->
   <rect x="714" y="22" width="198" height="198" fill="#ffffff" />
@@ -591,7 +591,7 @@ app.get("/api/labels/100x30/svg", async (req, res) => {
   </g>
 
   <!-- BATCH CODE -->
-  <text x="816.5" y="262" text-anchor="middle" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="38" font-weight="900" letter-spacing="1" fill="#000000">${batch_code || alc_code || ""}</text>
+  <text x="816.5" y="262" text-anchor="middle" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="32" font-weight="900" letter-spacing="1" fill="#000000">${batch_code || alc_code || ""}</text>
 </svg>`;
 
     res.setHeader("Content-Type", "image/svg+xml");
@@ -894,7 +894,7 @@ function resolveSystemPath(inputPath) {
   const driveMatch = raw.match(/^([a-zA-Z]):(.*)/);
   if (driveMatch) {
     const letter = driveMatch[1].toUpperCase();
-    let sub = driveMatch[2].replace(/\//g, "\\");
+    let sub = driveMatch[2].replace(/\//g, "\\").replace(/\\+/g, "\\");
     if (!sub.startsWith("\\")) sub = "\\" + sub;
     const displayPath = `${letter}:${sub === "\\" ? "\\" : sub}`;
 
@@ -1422,10 +1422,12 @@ app.post("/api/folder/scan", async (req, res) => {
 
   // Single batch database query to fetch all existing inspection records for this folder
   const existingMap = new Map();
+  const normalizedFolderPath = String(folderPath || "").replace(/\//g, "\\").replace(/\\+/g, "\\");
+  const normalizedDisplayPath = String(displayPath || "").replace(/\//g, "\\").replace(/\\+/g, "\\");
   try {
     const existingRes = await pool.query(
-      "SELECT id, file_name, printed, printed_at, sl_no, composite_code FROM logs WHERE folder_path = $1 OR folder_path = $2",
-      [folderPath, displayPath]
+      "SELECT id, file_name, printed, printed_at, sl_no, composite_code, model_no, part_no, sub_part_no, alc_code, part_name FROM logs WHERE folder_path = $1 OR folder_path = $2 OR folder_path = $3 OR folder_path = $4",
+      [folderPath, displayPath, normalizedFolderPath, normalizedDisplayPath]
     );
     for (const r of existingRes.rows) {
       existingMap.set(r.file_name, r);
@@ -1433,6 +1435,51 @@ app.post("/api/folder/scan", async (req, res) => {
   } catch (e) {
     console.warn("Batch log query warning:", e.message);
   }
+
+  // Auto-resolve real master model & part if missing or defaults to PART
+  let activeModel = model_no;
+  let activePart = part_no;
+  let activeSubPart = sub_part_no;
+  let activePartName = part_name;
+  let activeAlc = alc_code;
+
+  // 1. If activeModel is empty or '--', check if this folder's existing records already have a model
+  if (!activeModel || activeModel === "--") {
+    for (const r of existingMap.values()) {
+      if (r.model_no && r.model_no !== "GENERAL" && r.model_no !== "--") {
+        activeModel = r.model_no;
+        if (!activePart || activePart === "PART" || activePart === "--") activePart = r.part_no;
+        if (!activeSubPart || activeSubPart === "PART" || activeSubPart === "--") activeSubPart = r.sub_part_no || r.part_no;
+        if (!activeAlc || activeAlc === "--") activeAlc = r.alc_code;
+        if (!activePartName || activePartName === "PART NAME" || activePartName === "--") activePartName = r.part_name;
+        break;
+      }
+    }
+  }
+
+  // 2. Fall back to master_parts if still missing
+  if (!activeModel || !activePart || activePart === "PART" || activePart === "--" || !activeAlc || activeAlc === "--") {
+    try {
+      const defRes = await pool.query(
+        activeModel && activeModel !== "--"
+          ? "SELECT * FROM master_parts WHERE model_no = $1 ORDER BY id ASC LIMIT 1"
+          : "SELECT * FROM master_parts ORDER BY id ASC LIMIT 1",
+        activeModel && activeModel !== "--" ? [activeModel] : []
+      );
+      if (defRes.rows.length > 0) {
+        const row = defRes.rows[0];
+        activeModel = activeModel || row.model_no;
+        activePart = (activePart && activePart !== "PART" && activePart !== "--") ? activePart : row.part_no;
+        activeSubPart = (activeSubPart && activeSubPart !== "PART" && activeSubPart !== "--") ? activeSubPart : (row.sub_part_no || row.part_no);
+        activePartName = (activePartName && activePartName !== "PART NAME" && activePartName !== "--") ? activePartName : (row.part_name || "VACUUM HOSE");
+        activeAlc = (activeAlc && activeAlc !== "--") ? activeAlc : (row.alc_code || "CVH4");
+      }
+    } catch (e) {}
+  }
+  activeModel = activeModel || "AH2/AI3";
+  activePart = activePart || "59130C4000";
+  activeAlc = activeAlc || "CVH4";
+  activePartName = activePartName || "VACUUM HOSE";
 
   const autoPrintedLabels = [];
 
@@ -1453,14 +1500,31 @@ app.post("/api/folder/scan", async (req, res) => {
     }
 
     const pieceSlNo = savedSlNo || f.defaultSlNo;
-    const effectivePart = part_no || sub_part_no || "PART";
-    const compositeCode = savedComposite || buildCompositeCode({
-      prefix: "",
-      partNo: effectivePart,
-      slNo: pieceSlNo,
-      modelNo: model_no,
-      alcCode: alc_code,
-    });
+    const effectiveModel = (existingRow?.model_no && existingRow.model_no !== "GENERAL") ? existingRow.model_no : (activeModel || "AH2/AI3");
+    const effectivePart = (existingRow?.part_no && existingRow.part_no !== "PART") ? existingRow.part_no : (activePart || "59130C4000");
+    const effectiveAlc = (existingRow?.alc_code) ? existingRow.alc_code : (activeAlc || "CVH4");
+    const effectivePartName = existingRow?.part_name || activePartName || "VACUUM HOSE";
+
+    let compositeCode = savedComposite;
+    if (!compositeCode || compositeCode.startsWith("PART")) {
+      compositeCode = buildCompositeCode({
+        prefix: "",
+        partNo: effectivePart,
+        slNo: pieceSlNo,
+        modelNo: effectiveModel,
+        alcCode: effectiveAlc,
+      });
+    }
+
+    // Auto-heal corrupted rows in DB if they were saved with PART or NULL
+    if (existingRow && (!existingRow.part_no || existingRow.part_no === "PART" || !existingRow.composite_code || existingRow.composite_code.startsWith("PART"))) {
+      try {
+        await pool.query(
+          "UPDATE logs SET part_no = $1, sub_part_no = $1, alc_code = $2, composite_code = $3 WHERE id = $4",
+          [effectivePart, effectiveAlc, compositeCode, existingRow.id]
+        );
+      } catch (e) {}
+    }
 
     if (!existingRow) {
       // New inspection: insert log without blocking the loop
@@ -1471,10 +1535,12 @@ app.post("/api/folder/scan", async (req, res) => {
         fileName: f.name,
         filePath: f.fullPath,
         status: "OK",
-        modelNo: model_no || null,
-        partNo: part_no || null,
-        subPartNo: sub_part_no || null,
-        alcCode: alc_code || null,
+        modelNo: effectiveModel,
+        partNo: effectivePart,
+        subPartNo: effectivePart,
+        alcCode: effectiveAlc,
+        partName: effectivePartName,
+        compositeCode: compositeCode,
         slNo: pieceSlNo,
         operator: activeOperator,
         shift: activeShift,
@@ -1505,13 +1571,13 @@ app.post("/api/folder/scan", async (req, res) => {
 
         await insertLabelLog({
           slNo: pieceSlNo,
-          modelNo: String(model_no || ""),
+          modelNo: String(effectiveModel || ""),
           partNo: String(effectivePart || ""),
-          subPartNo: String(sub_part_no || effectivePart || ""),
-          partName: String(part_name || ""),
-          alcCode: String(alc_code || ""),
+          subPartNo: String(effectivePart || ""),
+          partName: String(effectivePartName || ""),
+          alcCode: String(effectiveAlc || ""),
           compositeCode,
-          batchCode: String(alc_code || ""),
+          batchCode: String(effectiveAlc || ""),
           qrFile: qrFileName,
           printedBy: activeOperator,
           printed: true,
@@ -1548,13 +1614,13 @@ app.post("/api/folder/scan", async (req, res) => {
 
       await insertLabelLog({
         slNo: pieceSlNo,
-        modelNo: String(model_no || ""),
+        modelNo: String(effectiveModel || ""),
         partNo: String(effectivePart || ""),
-        subPartNo: String(sub_part_no || effectivePart || ""),
-        partName: String(part_name || ""),
-        alcCode: String(alc_code || ""),
+        subPartNo: String(effectivePart || ""),
+        partName: String(effectivePartName || ""),
+        alcCode: String(effectiveAlc || ""),
         compositeCode,
-        batchCode: String(alc_code || ""),
+        batchCode: String(effectiveAlc || ""),
         qrFile: qrFileName,
         printedBy: activeOperator,
         printed: true,
@@ -1575,16 +1641,16 @@ app.post("/api/folder/scan", async (req, res) => {
     const host = req.get("host") || "localhost:5000";
     const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
     f.label = {
-      sl_no: savedSlNo || pieceSlNo,
-      model_no: model_no || "",
+      sl_no: pieceSlNo,
+      model_no: effectiveModel,
       part_no: effectivePart,
-      sub_part_no: sub_part_no || effectivePart,
-      part_name: part_name || "",
-      alc_code: alc_code || "",
-      composite_code: savedComposite || compositeCode,
-      batch_code: alc_code || "",
-      qr_file: `lbl_100x30_${sanitizeFileName(effectivePart)}_${savedSlNo || pieceSlNo}.png`,
-      qr_url: `${proto}://${host}/api/labels/qr-dataurl?code=${encodeURIComponent(savedComposite || compositeCode)}`,
+      sub_part_no: effectivePart,
+      part_name: effectivePartName,
+      alc_code: effectiveAlc,
+      composite_code: compositeCode,
+      batch_code: effectiveAlc,
+      qr_file: `lbl_100x30_${sanitizeFileName(effectivePart)}_${pieceSlNo}.png`,
+      qr_url: `${proto}://${host}/api/labels/qr-dataurl?code=${encodeURIComponent(compositeCode)}`,
     };
 
     if (isPrinted) {
@@ -1658,7 +1724,33 @@ app.post("/api/labels/print-single", async (req, res) => {
     return res.status(400).json({ error: "fileName and folderPath are required." });
   }
 
-  const effectivePart = part_no || sub_part_no || "PART";
+  let effectiveModel = model_no;
+  let effectivePart = (part_no && part_no !== "PART") ? part_no : sub_part_no;
+  let effectiveAlc = alc_code;
+  let effectivePartName = part_name;
+
+  if (!effectiveModel || !effectivePart || effectivePart === "PART" || !effectiveAlc) {
+    try {
+      const defRes = await pool.query(
+        effectiveModel
+          ? "SELECT * FROM master_parts WHERE model_no = $1 ORDER BY id ASC LIMIT 1"
+          : "SELECT * FROM master_parts ORDER BY id ASC LIMIT 1",
+        effectiveModel ? [effectiveModel] : []
+      );
+      if (defRes.rows.length > 0) {
+        const row = defRes.rows[0];
+        effectiveModel = effectiveModel || row.model_no;
+        effectivePart = (effectivePart && effectivePart !== "PART") ? effectivePart : row.part_no;
+        effectiveAlc = effectiveAlc || row.alc_code || "CVH4";
+        effectivePartName = effectivePartName || row.part_name || "VACUUM HOSE";
+      }
+    } catch (e) {}
+  }
+  effectiveModel = effectiveModel || "AH2/AI3";
+  effectivePart = effectivePart || "59130C4000";
+  effectiveAlc = effectiveAlc || "CVH4";
+  effectivePartName = effectivePartName || "VACUUM HOSE";
+
   // Guarantee each piece has its own unique serial number (e.g. 0001, 0002, 0003...)
   const effectiveSlNo = String(sl_no || "").trim() || String(piece_index).padStart(4, "0");
 
@@ -1666,8 +1758,8 @@ app.post("/api/labels/print-single", async (req, res) => {
     prefix: "",
     partNo: effectivePart,
     slNo: effectiveSlNo,
-    modelNo: model_no,
-    alcCode: alc_code,
+    modelNo: effectiveModel,
+    alcCode: effectiveAlc,
   });
 
   const safePart = sanitizeFileName(effectivePart);
@@ -1675,7 +1767,7 @@ app.post("/api/labels/print-single", async (req, res) => {
   const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
 
   try {
-    await QRCode.toFile(qrPath, compositeCode || effectivePart || alc_code || "HSI", {
+    await QRCode.toFile(qrPath, compositeCode || effectivePart || effectiveAlc || "HSI", {
       width: 450,
       margin: 1,
       errorCorrectionLevel: "H",
@@ -1683,23 +1775,23 @@ app.post("/api/labels/print-single", async (req, res) => {
 
     const labelLog = await insertLabelLog({
       slNo: effectiveSlNo,
-      modelNo: String(model_no || ""),
+      modelNo: String(effectiveModel || ""),
       partNo: String(effectivePart || ""),
-      subPartNo: String(sub_part_no || effectivePart || ""),
-      partName: String(part_name || ""),
-      alcCode: String(alc_code || ""),
+      subPartNo: String(effectivePart || ""),
+      partName: String(effectivePartName || ""),
+      alcCode: String(effectiveAlc || ""),
       compositeCode,
-      batchCode: alc_code || "",
+      batchCode: effectiveAlc || "",
       qrFile: qrFileName,
       printedBy,
     });
 
     await pool.query(
-      `UPDATE logs SET printed = TRUE, printed_at = NOW(), sl_no = $3, composite_code = $4 WHERE folder_path = $1 AND file_name = $2`,
-      [folderPath, fileName, effectiveSlNo, compositeCode]
+      `UPDATE logs SET printed = TRUE, printed_at = NOW(), sl_no = $3, composite_code = $4, model_no = $5, part_no = $6, sub_part_no = $6, alc_code = $7, part_name = $8 WHERE folder_path = $1 AND file_name = $2`,
+      [folderPath, fileName, effectiveSlNo, compositeCode, effectiveModel, effectivePart, effectiveAlc, effectivePartName]
     );
 
-    const qrDataUrl = await QRCode.toDataURL(compositeCode || effectivePart || alc_code || "HSI", { width: 450, margin: 1 });
+    const qrDataUrl = await QRCode.toDataURL(compositeCode || effectivePart || effectiveAlc || "HSI", { width: 450, margin: 1 });
     const host = req.get("host") || "localhost:5000";
     const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
 
@@ -1708,13 +1800,13 @@ app.post("/api/labels/print-single", async (req, res) => {
       message: `Label for ${fileName} printed successfully.`,
       label: {
         sl_no: effectiveSlNo,
-        model_no,
+        model_no: effectiveModel,
         part_no: effectivePart,
-        sub_part_no: sub_part_no || effectivePart,
-        part_name,
-        alc_code,
+        sub_part_no: effectivePart,
+        part_name: effectivePartName,
+        alc_code: effectiveAlc,
         composite_code: compositeCode,
-        batch_code: alc_code || "",
+        batch_code: effectiveAlc || "",
         qr_file: qrFileName,
         qr_url: `${proto}://${host}/qr-output/${qrFileName}`,
         qr_data_url: qrDataUrl,
@@ -1745,7 +1837,33 @@ app.post("/api/labels/print-batch", async (req, res) => {
     return res.status(400).json({ error: "No OK files specified to print." });
   }
 
-  const effectivePart = part_no || sub_part_no || "PART";
+  let effectiveModel = model_no;
+  let effectivePart = (part_no && part_no !== "PART") ? part_no : sub_part_no;
+  let effectiveAlc = alc_code;
+  let effectivePartName = part_name;
+
+  if (!effectiveModel || !effectivePart || effectivePart === "PART" || !effectiveAlc) {
+    try {
+      const defRes = await pool.query(
+        effectiveModel
+          ? "SELECT * FROM master_parts WHERE model_no = $1 ORDER BY id ASC LIMIT 1"
+          : "SELECT * FROM master_parts ORDER BY id ASC LIMIT 1",
+        effectiveModel ? [effectiveModel] : []
+      );
+      if (defRes.rows.length > 0) {
+        const row = defRes.rows[0];
+        effectiveModel = effectiveModel || row.model_no;
+        effectivePart = (effectivePart && effectivePart !== "PART") ? effectivePart : row.part_no;
+        effectiveAlc = effectiveAlc || row.alc_code || "CVH4";
+        effectivePartName = effectivePartName || row.part_name || "VACUUM HOSE";
+      }
+    } catch (e) {}
+  }
+  effectiveModel = effectiveModel || "AH2/AI3";
+  effectivePart = effectivePart || "59130C4000";
+  effectiveAlc = effectiveAlc || "CVH4";
+  effectivePartName = effectivePartName || "VACUUM HOSE";
+
   const printedList = [];
 
   for (let i = 0; i < files.length; i++) {
@@ -1759,8 +1877,8 @@ app.post("/api/labels/print-batch", async (req, res) => {
       prefix: "",
       partNo: effectivePart,
       slNo: pieceSlNo,
-      modelNo: model_no,
-      alcCode: alc_code,
+      modelNo: effectiveModel,
+      alcCode: effectiveAlc,
     });
 
     const safePart = sanitizeFileName(effectivePart);
@@ -1773,20 +1891,20 @@ app.post("/api/labels/print-batch", async (req, res) => {
 
     const labelLog = await insertLabelLog({
       slNo: pieceSlNo,
-      modelNo: String(model_no || ""),
+      modelNo: String(effectiveModel || ""),
       partNo: String(effectivePart || ""),
-      subPartNo: String(sub_part_no || effectivePart || ""),
-      partName: String(part_name || ""),
-      alcCode: String(alc_code || ""),
+      subPartNo: String(effectivePart || ""),
+      partName: String(effectivePartName || ""),
+      alcCode: String(effectiveAlc || ""),
       compositeCode: pieceComposite,
-      batchCode: alc_code || "",
+      batchCode: effectiveAlc || "",
       qrFile: qrFileName,
       printedBy,
     });
 
     await pool.query(
-      `UPDATE logs SET printed = TRUE, printed_at = NOW(), sl_no = $3, composite_code = $4 WHERE folder_path = $1 AND file_name = $2`,
-      [folderPath, fName, pieceSlNo, pieceComposite]
+      `UPDATE logs SET printed = TRUE, printed_at = NOW(), sl_no = $3, composite_code = $4, model_no = $5, part_no = $6, sub_part_no = $6, alc_code = $7, part_name = $8 WHERE folder_path = $1 AND file_name = $2`,
+      [folderPath, fName, pieceSlNo, pieceComposite, effectiveModel, effectivePart, effectiveAlc, effectivePartName]
     );
 
     const host = req.get("host") || "localhost:5000";

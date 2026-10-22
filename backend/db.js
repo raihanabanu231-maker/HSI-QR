@@ -127,6 +127,7 @@ function getMasterExcelPath() {
     path.join(__dirname, "..", "VACUUM HOSE PART LIST.xlsx"),
     path.join(os.homedir(), "Downloads", "VACUUM HOSE PART LIST.xlsx"),
   ];
+  
   return possiblePaths.find((p) => fs.existsSync(p));
 }
 
@@ -413,6 +414,8 @@ async function insertLog({
   partNo,
   subPartNo,
   alcCode,
+  partName,
+  compositeCode,
   operator,
   shift,
   traceNumber,
@@ -433,11 +436,11 @@ async function insertLog({
   const res = await pool.query(
     `INSERT INTO logs (
       folder_name, folder_path, file_name, file_path, status,
-      model_no, part_no, sub_part_no, alc_code,
+      model_no, part_no, sub_part_no, alc_code, part_name, composite_code,
       operator, shift, trace_number, pressure, pack_qty, remark,
       printed, printed_at, sl_no
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
     RETURNING *`,
     [
       folderName,
@@ -449,6 +452,8 @@ async function insertLog({
       partNo || null,
       subPartNo || null,
       alcCode || null,
+      partName || "VACUUM HOSE",
+      compositeCode || null,
       defOperator,
       defShift,
       traceNumber || null,

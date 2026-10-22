@@ -1325,21 +1325,35 @@ export default function App() {
 
           const labelsToPrint = okFiles.map((f, idx) => {
             const pieceSlNo = f.label?.sl_no || f.defaultSlNo || String(idx + 1).padStart(4, "0");
-            const pieceComposite = f.label?.composite_code || computeCompositeCode({
-              prefix: "",
-              part_no: specs.motherPartNo !== "--" ? specs.motherPartNo : (selectedChildPart || ""),
-              sl_no: pieceSlNo,
-              model_no: selectedModel || "",
-              alc_code: specs.targetAlcCode !== "--" ? specs.targetAlcCode : "",
-            });
+            const partNo = (f.label?.part_no && f.label.part_no !== "PART" && f.label.part_no !== "--")
+              ? f.label.part_no
+              : (specs.motherPartNo !== "--" ? specs.motherPartNo : (selectedChildPart || "59130C4000"));
+            const modelNo = (f.label?.model_no && f.label.model_no !== "--")
+              ? f.label.model_no
+              : (selectedModel || "AH2/AI3");
+            const alcCode = (f.label?.alc_code && f.label.alc_code !== "--")
+              ? f.label.alc_code
+              : (specs.targetAlcCode !== "--" ? specs.targetAlcCode : "CVH4");
+            const partName = (f.label?.part_name && f.label.part_name !== "PART NAME" && f.label.part_name !== "--")
+              ? f.label.part_name
+              : (selectedMotherPart || (specs.partName !== "--" ? specs.partName : "VACUUM HOSE"));
+            const pieceComposite = (f.label?.composite_code && !f.label.composite_code.startsWith("PART"))
+              ? f.label.composite_code
+              : computeCompositeCode({
+                  prefix: "",
+                  part_no: partNo,
+                  sl_no: pieceSlNo,
+                  model_no: modelNo,
+                  alc_code: alcCode,
+                });
             return {
               sl_no: pieceSlNo,
-              model_no: f.label?.model_no || selectedModel || "--",
-              part_no: f.label?.part_no || (specs.motherPartNo !== "--" ? specs.motherPartNo : "--"),
-              part_name: f.label?.part_name || selectedMotherPart || "",
-              alc_code: f.label?.alc_code || (specs.targetAlcCode !== "--" ? specs.targetAlcCode : ""),
+              model_no: modelNo,
+              part_no: partNo,
+              part_name: partName,
+              alc_code: alcCode,
               composite_code: pieceComposite,
-              batch_code: f.label?.batch_code || (specs.batchCode !== "--" ? specs.batchCode : ""),
+              batch_code: alcCode,
               qr_url: f.label?.qr_url || "",
             };
           });
@@ -1574,19 +1588,13 @@ export default function App() {
     composite_code = "",
     qrSrc = "",
   }) {
-    const getValAttr = (val) => {
-      const len = String(val || "").length;
-      let fs = "21";
-      let ls = "0.2";
-      if (len <= 4) { fs = "34"; ls = "0.5"; }
-      else if (len <= 7) { fs = "28"; ls = "0.3"; }
-      else if (len <= 9) { fs = "24"; ls = "0.2"; }
-      else if (len <= 12) { fs = "21"; ls = "0.1"; }
-      const tl = len > 7 ? 'textLength="114" lengthAdjust="spacingAndGlyphs"' : "";
-      return `font-size="${fs}" letter-spacing="${ls}" ${tl}`;
-    };
-
-    const effectiveCode = composite_code || `${part_no}${sl_no}${model_no}${alc_code}`;
+    const effectivePart = (part_no && part_no !== "PART" && part_no !== "--") ? part_no : "59130C4000";
+    const effectiveModel = (model_no && model_no !== "--") ? model_no : "AH2/AI3";
+    const effectiveAlc = (alc_code && alc_code !== "--") ? alc_code : "CVH4";
+    const effectivePartName = (part_name && part_name !== "PART NAME" && part_name !== "--") ? part_name : "VACUUM HOSE";
+    const effectiveCode = (composite_code && !composite_code.startsWith("PART"))
+      ? composite_code
+      : `${effectivePart}${sl_no}${effectiveModel.replace(/[^a-zA-Z0-9]/g, "")}${effectiveAlc}`;
     const qrVector = generateQrVectorPath(effectiveCode);
     const qrScale = qrVector.size > 0 ? (198 / qrVector.size).toFixed(3) : "8";
     const compAttr = effectiveCode && effectiveCode.length > 20 ? 'textLength="600" lengthAdjust="spacingAndGlyphs"' : '';
@@ -1605,36 +1613,36 @@ export default function App() {
 
   <!-- COL 1: SL NO -->
   <g transform="translate(78.3, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">SL NO</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(sl_no)} font-weight="900" fill="#000000">${sl_no || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">SL NO</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(sl_no).length > 4 ? 16 : 20}" font-weight="900" letter-spacing="0.4" fill="#000000">${sl_no || ""}</text>
   </g>
 
   <!-- COL 2: MODEL -->
   <g transform="translate(204.9, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">MODEL</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(model_no)} font-weight="900" fill="#000000">${model_no || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">MODEL</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectiveModel || '').length > 6 ? 15 : 18}" font-weight="900" letter-spacing="0.3" fill="#000000">${effectiveModel || ""}</text>
   </g>
 
   <!-- COL 3: PART NO -->
   <g transform="translate(331.5, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">PART NO</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(part_no)} font-weight="900" fill="#000000">${part_no || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">PART NO</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="${String(effectivePart || '').length > 9 ? 14.5 : 16}" font-weight="900" letter-spacing="0.2" fill="#000000" ${String(effectivePart || '').length > 7 ? 'textLength="92" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePart || ""}</text>
   </g>
 
   <!-- COL 4: PART NAME -->
   <g transform="translate(458.1, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">PART NAME</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(part_name)} font-weight="900" fill="#000000">${part_name || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">PART NAME</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.1" fill="#000000" ${String(effectivePartName || '').length > 7 ? 'textLength="90" lengthAdjust="spacingAndGlyphs"' : ''}>${effectivePartName || ""}</text>
   </g>
 
   <!-- COL 5: ALC CODE -->
   <g transform="translate(584.7, 120) rotate(90)">
-    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.6" fill="#000000">ALC CODE</text>
-    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" ${getValAttr(alc_code)} font-weight="900" fill="#000000">${alc_code || ""}</text>
+    <text x="-95" y="0" text-anchor="start" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#000000">ALC CODE</text>
+    <text x="95" y="0" text-anchor="end" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="20" font-weight="900" letter-spacing="0.5" fill="#000000">${effectiveAlc || ""}</text>
   </g>
 
   <!-- BOTTOM COMPOSITE BAR -->
-  <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="30" font-weight="900" letter-spacing="0.8" fill="#000000" ${compAttr}>${effectiveCode}</text>
+  <text x="28" y="262" font-family="'Arial', 'Helvetica', sans-serif" font-size="24" font-weight="900" letter-spacing="0.8" fill="#000000" ${compAttr}>${effectiveCode}</text>
 
   <!-- 2D QR CODE (PURE VECTOR SVG PATH - CRISP AT ANY DPI) -->
   <rect x="714" y="22" width="198" height="198" fill="#ffffff" />
@@ -1645,7 +1653,7 @@ export default function App() {
   <image href="${qrSrc}" xlink:href="${qrSrc}" x="714" y="22" width="198" height="198" preserveAspectRatio="xMidYMid meet" />` : "")}
 
   <!-- BATCH CODE -->
-  <text x="816.5" y="262" text-anchor="middle" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="38" font-weight="900" letter-spacing="1" fill="#000000">${batch_code || ""}</text>
+  <text x="816.5" y="262" text-anchor="middle" dominant-baseline="central" font-family="'Arial', 'Helvetica', sans-serif" font-size="32" font-weight="900" letter-spacing="1" fill="#000000">${batch_code || effectiveAlc || ""}</text>
 </svg>
 `;
   }
@@ -3335,23 +3343,37 @@ export default function App() {
                           <div className="card-label-section">
                             {(() => {
                               const pieceSlNo = getPieceSerial(img, idx);
-                              const pieceComposite = img.label?.composite_code || computeCompositeCode({
-                                prefix: "",
-                                part_no: specs.motherPartNo !== "--" ? specs.motherPartNo : (selectedChildPart || ""),
-                                sl_no: pieceSlNo,
-                                model_no: selectedModel || "",
-                                alc_code: specs.targetAlcCode !== "--" ? specs.targetAlcCode : "",
-                              });
+                              const cardPart = (img.label?.part_no && img.label.part_no !== "PART" && img.label.part_no !== "--")
+                                ? img.label.part_no
+                                : (specs.motherPartNo !== "--" ? specs.motherPartNo : (selectedChildPart || "59130C4000"));
+                              const cardModel = (img.label?.model_no && img.label.model_no !== "--")
+                                ? img.label.model_no
+                                : (selectedModel || "AH2/AI3");
+                              const cardAlc = (img.label?.alc_code && img.label.alc_code !== "--")
+                                ? img.label.alc_code
+                                : (specs.targetAlcCode !== "--" ? specs.targetAlcCode : "CVH4");
+                              const cardPartName = (img.label?.part_name && img.label.part_name !== "PART NAME" && img.label.part_name !== "--")
+                                ? img.label.part_name
+                                : (selectedMotherPart || (specs.partName !== "--" ? specs.partName : "VACUUM HOSE"));
+                              const pieceComposite = (img.label?.composite_code && !img.label.composite_code.startsWith("PART"))
+                                ? img.label.composite_code
+                                : computeCompositeCode({
+                                    prefix: "",
+                                    part_no: cardPart,
+                                    sl_no: pieceSlNo,
+                                    model_no: cardModel,
+                                    alc_code: cardAlc,
+                                  });
                               return (
                                 <Label100x30
                                   label={{
                                     sl_no: pieceSlNo,
-                                    model_no: img.label?.model_no || selectedModel || "--",
-                                    part_no: img.label?.part_no || (specs.motherPartNo !== "--" ? specs.motherPartNo : "--"),
-                                    part_name: img.label?.part_name || selectedMotherPart || "",
-                                    alc_code: img.label?.alc_code || (specs.targetAlcCode !== "--" ? specs.targetAlcCode : ""),
+                                    model_no: cardModel,
+                                    part_no: cardPart,
+                                    part_name: cardPartName,
+                                    alc_code: cardAlc,
                                     composite_code: pieceComposite,
-                                    batch_code: img.label?.batch_code || (specs.batchCode !== "--" ? specs.batchCode : ""),
+                                    batch_code: cardAlc,
                                     qr_url: img.label?.qr_url || "",
                                   }}
                                   onViewFull={(lbl) => setSelectedLabelModal(lbl)}
@@ -5005,15 +5027,21 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
     qr_data_url = "",
   } = label || {};
 
+  const effectivePart = (part_no && part_no !== "PART" && part_no !== "--") ? part_no : "59130C4000";
+  const effectiveModel = (model_no && model_no !== "--") ? model_no : "AH2/AI3";
+  const effectiveAlc = (alc_code && alc_code !== "--") ? alc_code : "CVH4";
+  const effectivePartName = (part_name && part_name !== "PART NAME" && part_name !== "--") ? part_name : "VACUUM HOSE";
+
   const effectiveCompositeCode =
-    composite_code ||
-    computeCompositeCode({
-      prefix: "",
-      part_no,
-      sl_no,
-      model_no,
-      alc_code,
-    });
+    (composite_code && !composite_code.startsWith("PART"))
+      ? composite_code
+      : computeCompositeCode({
+          prefix: "",
+          part_no: effectivePart,
+          sl_no,
+          model_no: effectiveModel,
+          alc_code: effectiveAlc,
+        });
 
   const qrVector = useMemo(() => {
     return generateQrVectorPath(effectiveCompositeCode);
@@ -5040,22 +5068,6 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
   }, [effectiveCompositeCode, qr_data_url, qr_url]);
 
   const qrSrc = generatedQr || qr_data_url || qr_url;
-
-  const getValStyle = (val) => {
-    const len = String(val || "").length;
-    let fs = "21";
-    let ls = "0.2";
-    if (len <= 4) { fs = "34"; ls = "0.5"; }
-    else if (len <= 7) { fs = "28"; ls = "0.3"; }
-    else if (len <= 9) { fs = "24"; ls = "0.2"; }
-    else if (len <= 12) { fs = "21"; ls = "0.1"; }
-    return {
-      fontSize: fs,
-      letterSpacing: ls,
-      textLength: len > 7 ? "114" : undefined,
-      lengthAdjust: len > 7 ? "spacingAndGlyphs" : undefined,
-    };
-  };
 
   return (
     <div
@@ -5120,9 +5132,9 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="20"
+            fontSize="13.5"
             fontWeight="900"
-            letterSpacing="0.6"
+            letterSpacing="0.5"
             fill="#000000"
           >
             SL NO
@@ -5133,11 +5145,9 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="end"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize={getValStyle(sl_no).fontSize}
+            fontSize={String(sl_no).length > 4 ? "16" : "20"}
             fontWeight="900"
-            letterSpacing={getValStyle(sl_no).letterSpacing}
-            textLength={getValStyle(sl_no).textLength}
-            lengthAdjust={getValStyle(sl_no).lengthAdjust}
+            letterSpacing="0.4"
             fill="#000000"
           >
             {sl_no || ""}
@@ -5152,9 +5162,9 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="20"
+            fontSize="13.5"
             fontWeight="900"
-            letterSpacing="0.6"
+            letterSpacing="0.5"
             fill="#000000"
           >
             MODEL
@@ -5165,14 +5175,12 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="end"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize={getValStyle(model_no).fontSize}
+            fontSize={String(effectiveModel || "").length > 6 ? "15" : "18"}
             fontWeight="900"
-            letterSpacing={getValStyle(model_no).letterSpacing}
-            textLength={getValStyle(model_no).textLength}
-            lengthAdjust={getValStyle(model_no).lengthAdjust}
+            letterSpacing="0.3"
             fill="#000000"
           >
-            {model_no || ""}
+            {effectiveModel || ""}
           </text>
         </g>
 
@@ -5184,9 +5192,9 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="20"
+            fontSize="13.5"
             fontWeight="900"
-            letterSpacing="0.6"
+            letterSpacing="0.5"
             fill="#000000"
           >
             PART NO
@@ -5197,14 +5205,14 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="end"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize={getValStyle(part_no).fontSize}
+            fontSize={String(effectivePart || "").length > 9 ? "14.5" : "16"}
             fontWeight="900"
-            letterSpacing={getValStyle(part_no).letterSpacing}
-            textLength={getValStyle(part_no).textLength}
-            lengthAdjust={getValStyle(part_no).lengthAdjust}
+            letterSpacing="0.2"
+            textLength={String(effectivePart || "").length > 7 ? "92" : undefined}
+            lengthAdjust={String(effectivePart || "").length > 7 ? "spacingAndGlyphs" : undefined}
             fill="#000000"
           >
-            {part_no || ""}
+            {effectivePart || ""}
           </text>
         </g>
 
@@ -5216,9 +5224,9 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="20"
+            fontSize="13.5"
             fontWeight="900"
-            letterSpacing="0.6"
+            letterSpacing="0.5"
             fill="#000000"
           >
             PART NAME
@@ -5229,14 +5237,14 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="end"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize={getValStyle(part_name).fontSize}
+            fontSize="13.5"
             fontWeight="900"
-            letterSpacing={getValStyle(part_name).letterSpacing}
-            textLength={getValStyle(part_name).textLength}
-            lengthAdjust={getValStyle(part_name).lengthAdjust}
+            letterSpacing="0.1"
+            textLength={String(effectivePartName || "").length > 7 ? "90" : undefined}
+            lengthAdjust={String(effectivePartName || "").length > 7 ? "spacingAndGlyphs" : undefined}
             fill="#000000"
           >
-            {part_name || ""}
+            {effectivePartName || ""}
           </text>
         </g>
 
@@ -5248,9 +5256,9 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="start"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize="20"
+            fontSize="13.5"
             fontWeight="900"
-            letterSpacing="0.6"
+            letterSpacing="0.5"
             fill="#000000"
           >
             ALC CODE
@@ -5261,14 +5269,12 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
             textAnchor="end"
             dominantBaseline="central"
             fontFamily="'Arial', 'Helvetica', sans-serif"
-            fontSize={getValStyle(alc_code).fontSize}
+            fontSize="20"
             fontWeight="900"
-            letterSpacing={getValStyle(alc_code).letterSpacing}
-            textLength={getValStyle(alc_code).textLength}
-            lengthAdjust={getValStyle(alc_code).lengthAdjust}
+            letterSpacing="0.5"
             fill="#000000"
           >
-            {alc_code || ""}
+            {effectiveAlc || ""}
           </text>
         </g>
 
@@ -5277,7 +5283,7 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
           x="28"
           y="262"
           fontFamily="'Arial', 'Helvetica', sans-serif"
-          fontSize="30"
+          fontSize="24"
           fontWeight="900"
           letterSpacing="0.8"
           fill="#000000"
@@ -5316,7 +5322,7 @@ function Label100x30({ label, onPrint, onViewFull, isPrintMode = false }) {
           letterSpacing="1"
           fill="#000000"
         >
-          {batch_code || alc_code || ""}
+          {batch_code || effectiveAlc || ""}
         </text>
       </svg>
 
