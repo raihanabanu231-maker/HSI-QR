@@ -96,6 +96,13 @@ function computeCompositeCode({ prefix = "", part_no = "", sl_no = "", model_no 
   return `${p}${pn}${sl}${m}${alc}`;
 }
 
+// Generates unique sequential piece serial number for each inspected item (0001, 0002, 0003...)
+function getPieceSerial(img, idx) {
+  if (img?.label?.sl_no) return String(img.label.sl_no);
+  if (img?.defaultSlNo) return String(img.defaultSlNo);
+  return String((idx !== undefined ? idx : 0) + 1).padStart(4, "0");
+}
+
 // Pure Vector QR Code Path Generator (100% synchronous, vector sharp, instant print preview)
 function generateQrVectorPath(text) {
   if (!text) return { size: 21, path: "" };
@@ -1106,9 +1113,11 @@ export default function App() {
   }
 
   // EXPLICIT USER-TRIGGERED PRINT FOR SINGLE OK PART
-  function handlePrintSingleOk(img) {
+  function handlePrintSingleOk(img, idx = 0) {
     if (!img) return;
     const effectivePart = specs.motherPartNo !== "--" ? specs.motherPartNo : (selectedChildPart || "PART");
+    const pieceSlNo = getPieceSerial(img, idx);
+
     fetch(`${API}/labels/print-single`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1121,7 +1130,8 @@ export default function App() {
         sub_part_no: selectedChildPart || effectivePart,
         part_name: specs.partName !== "--" ? specs.partName : "",
         alc_code: specs.targetAlcCode !== "--" ? specs.targetAlcCode : "",
-        sl_no: specs.slNo !== "--" ? specs.slNo : "",
+        sl_no: pieceSlNo,
+        piece_index: idx + 1,
         printedBy: currentUser?.username || "operator",
       }),
     })
@@ -1139,7 +1149,7 @@ export default function App() {
           )
         );
         setCounters((prev) => ({ ...prev, total_labels_today: prev.total_labels_today + 1 }));
-        setPrintFeedback(`✓ 100x30 Barcode Label Printed for ${img.name}!`);
+        setPrintFeedback(`✓ 100x30 Barcode Label Printed for ${img.name}! (SL NO: ${data.label?.sl_no || pieceSlNo})`);
         if (data.label) {
           trigger100x30Print(data.label);
         }
@@ -1159,14 +1169,16 @@ export default function App() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        files: okImages.map((f) => f.name),
+        files: okImages.map((f, i) => ({
+          name: f.name,
+          sl_no: getPieceSerial(f, i),
+        })),
         folderPath: selectedFolder,
         model_no: selectedModel || "",
         part_no: specs.motherPartNo !== "--" ? specs.motherPartNo : "",
         sub_part_no: selectedChildPart || effectivePart,
         part_name: specs.partName !== "--" ? specs.partName : "",
         alc_code: specs.targetAlcCode !== "--" ? specs.targetAlcCode : "",
-        sl_no: specs.slNo !== "--" ? specs.slNo : "",
         printedBy: currentUser?.username || "operator",
       }),
     })
@@ -1176,11 +1188,33 @@ export default function App() {
           setError(data.error);
           return;
         }
-        setOkImages((prev) =>
-          prev.map((item) => ({ ...item, printed: true, printedAt: new Date().toISOString() }))
-        );
+        if (data.labels && data.labels.length > 0) {
+          setOkImages((prev) =>
+            prev.map((item) => {
+              const matched = data.labels.find((l) => l.fileName === item.name);
+              return matched
+                ? {
+                    ...item,
+                    printed: true,
+                    printedAt: new Date().toISOString(),
+                    label: {
+                      ...matched,
+                      model_no: selectedModel || "",
+                      part_no: specs.motherPartNo !== "--" ? specs.motherPartNo : "",
+                      part_name: specs.partName !== "--" ? specs.partName : "",
+                      alc_code: specs.targetAlcCode !== "--" ? specs.targetAlcCode : "",
+                    },
+                  }
+                : { ...item, printed: true, printedAt: new Date().toISOString() };
+            })
+          );
+        } else {
+          setOkImages((prev) =>
+            prev.map((item) => ({ ...item, printed: true, printedAt: new Date().toISOString() }))
+          );
+        }
         setCounters((prev) => ({ ...prev, total_labels_today: prev.total_labels_today + (data.count || 0) }));
-        setPrintFeedback(`✓ Successfully printed all ${data.count || okImages.length} approved 100x30 labels!`);
+        setPrintFeedback(`✓ Successfully printed all ${data.count || okImages.length} unique 100x30 labels!`);
         window.print();
       })
       .catch((err) => setError("Batch print failed: " + err.message));
@@ -2806,7 +2840,7 @@ export default function App() {
                             <button
                               type="button"
                               className={`btn-card-manual-print ${img.printed ? "reprint" : ""}`}
-                              onClick={() => handlePrintSingleOk(img)}
+                              onClick={() => handlePrintSingleOk(img, idx)}
                               id={`btn-manual-print-${idx}`}
                             >
                               <Printer size={14} />
@@ -2814,22 +2848,34 @@ export default function App() {
                             </button>
                           </div>
 
-                          {/* EXACT 100x30MM LABEL CARD */}
+                          {/* EXACT 100x30MM LABEL CARD (UNIQUE PIECE SERIAL & QR) */}
                           <div className="card-label-section">
-                            <Label100x30
-                              label={{
-                                sl_no: img.label?.sl_no || specs.slNo,
-                                model_no: img.label?.model_no || selectedModel || "--",
-                                part_no: img.label?.part_no || (specs.motherPartNo !== "--" ? specs.motherPartNo : "--"),
-                                part_name: img.label?.part_name || selectedMotherPart || "",
-                                alc_code: img.label?.alc_code || (specs.targetAlcCode !== "--" ? specs.targetAlcCode : ""),
-                                composite_code: img.label?.composite_code || (specs.compositeCode !== "--" ? specs.compositeCode : ""),
-                                batch_code: img.label?.batch_code || (specs.batchCode !== "--" ? specs.batchCode : ""),
-                                qr_url: img.label?.qr_url || (specs.compositeCode && specs.compositeCode !== "--" ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(specs.compositeCode)}` : ""),
-                              }}
-                              onViewFull={(lbl) => setSelectedLabelModal(lbl)}
-                              onPrint={() => handlePrintSingleOk(img)}
-                            />
+                            {(() => {
+                              const pieceSlNo = getPieceSerial(img, idx);
+                              const pieceComposite = img.label?.composite_code || computeCompositeCode({
+                                prefix: "",
+                                part_no: specs.motherPartNo !== "--" ? specs.motherPartNo : (selectedChildPart || ""),
+                                sl_no: pieceSlNo,
+                                model_no: selectedModel || "",
+                                alc_code: specs.targetAlcCode !== "--" ? specs.targetAlcCode : "",
+                              });
+                              return (
+                                <Label100x30
+                                  label={{
+                                    sl_no: pieceSlNo,
+                                    model_no: img.label?.model_no || selectedModel || "--",
+                                    part_no: img.label?.part_no || (specs.motherPartNo !== "--" ? specs.motherPartNo : "--"),
+                                    part_name: img.label?.part_name || selectedMotherPart || "",
+                                    alc_code: img.label?.alc_code || (specs.targetAlcCode !== "--" ? specs.targetAlcCode : ""),
+                                    composite_code: pieceComposite,
+                                    batch_code: img.label?.batch_code || (specs.batchCode !== "--" ? specs.batchCode : ""),
+                                    qr_url: img.label?.qr_url || "",
+                                  }}
+                                  onViewFull={(lbl) => setSelectedLabelModal(lbl)}
+                                  onPrint={() => handlePrintSingleOk(img, idx)}
+                                />
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>

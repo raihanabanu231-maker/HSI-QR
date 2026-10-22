@@ -1172,11 +1172,15 @@ app.post("/api/folder/scan", async (req, res) => {
         const previewUrl = `${proto}://${host}/api/image-preview?path=${encodeURIComponent(fullPath)}`;
 
         if (isOk) {
+          const pieceIndex = okFiles.length + 1;
+          const defaultSlNo = String(pieceIndex).padStart(4, "0");
           okFiles.push({
             name: entry.name,
             fullPath,
             previewUrl,
             status: "OK",
+            pieceIndex,
+            defaultSlNo,
             scannedAt: new Date().toISOString(),
           });
         } else if (isNg) {
@@ -1199,18 +1203,22 @@ app.post("/api/folder/scan", async (req, res) => {
   // Process OK images: Log to database if new, DO NOT auto-print unless explicitly requested
   for (const f of okFiles) {
     const existing = await pool.query(
-      "SELECT id, printed, printed_at FROM logs WHERE folder_path = $1 AND file_name = $2 LIMIT 1",
+      "SELECT id, printed, printed_at, sl_no, composite_code FROM logs WHERE folder_path = $1 AND file_name = $2 LIMIT 1",
       [folderPath, f.name]
     );
 
     let isPrinted = false;
     let printedAt = null;
+    let savedSlNo = null;
+    let savedComposite = null;
 
     if (existing.rows.length > 0) {
       isPrinted = !!existing.rows[0].printed;
       printedAt = existing.rows[0].printed_at;
+      savedSlNo = existing.rows[0].sl_no;
+      savedComposite = existing.rows[0].composite_code;
     } else {
-      // New inspection: log it with printed = false
+      // New inspection: log it with printed = false and default piece serial number
       await insertLog({
         folderName,
         folderPath,
@@ -1221,6 +1229,7 @@ app.post("/api/folder/scan", async (req, res) => {
         partNo: part_no || null,
         subPartNo: sub_part_no || null,
         alcCode: alc_code || null,
+        slNo: f.defaultSlNo,
         operator: activeOperator,
         shift: activeShift,
         remark: "Camera Inspection: Verified OK",
@@ -1230,6 +1239,17 @@ app.post("/api/folder/scan", async (req, res) => {
 
     f.printed = isPrinted;
     f.printedAt = printedAt;
+    if (savedSlNo) f.defaultSlNo = savedSlNo;
+    if (isPrinted && (savedSlNo || savedComposite)) {
+      f.label = {
+        sl_no: savedSlNo || f.defaultSlNo,
+        model_no: model_no || "",
+        part_no: part_no || sub_part_no || "",
+        sub_part_no: sub_part_no || part_no || "",
+        alc_code: alc_code || "",
+        composite_code: savedComposite || "",
+      };
+    }
   }
 
   // Process NG (Not OK) images: Log defect, NO label printed
@@ -1290,6 +1310,7 @@ app.post("/api/labels/print-single", async (req, res) => {
     part_name = "",
     alc_code = "",
     sl_no = "",
+    piece_index = 1,
     printedBy = "operator",
   } = req.body;
 
@@ -1298,16 +1319,19 @@ app.post("/api/labels/print-single", async (req, res) => {
   }
 
   const effectivePart = part_no || sub_part_no || "PART";
+  // Guarantee each piece has its own unique serial number (e.g. 0001, 0002, 0003...)
+  const effectiveSlNo = String(sl_no || "").trim() || String(piece_index).padStart(4, "0");
+
   const compositeCode = buildCompositeCode({
     prefix: "",
     partNo: effectivePart,
-    slNo: sl_no,
+    slNo: effectiveSlNo,
     modelNo: model_no,
     alcCode: alc_code,
   });
 
   const safePart = sanitizeFileName(effectivePart);
-  const qrFileName = `lbl_100x30_${safePart}_${Date.now()}.png`;
+  const qrFileName = `lbl_100x30_${safePart}_${effectiveSlNo}_${Date.now()}.png`;
   const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
 
   try {
@@ -1318,7 +1342,7 @@ app.post("/api/labels/print-single", async (req, res) => {
     });
 
     const labelLog = await insertLabelLog({
-      slNo: String(sl_no || ""),
+      slNo: effectiveSlNo,
       modelNo: String(model_no || ""),
       partNo: String(effectivePart || ""),
       subPartNo: String(sub_part_no || effectivePart || ""),
@@ -1331,8 +1355,8 @@ app.post("/api/labels/print-single", async (req, res) => {
     });
 
     await pool.query(
-      `UPDATE logs SET printed = TRUE, printed_at = NOW() WHERE folder_path = $1 AND file_name = $2`,
-      [folderPath, fileName]
+      `UPDATE logs SET printed = TRUE, printed_at = NOW(), sl_no = $3, composite_code = $4 WHERE folder_path = $1 AND file_name = $2`,
+      [folderPath, fileName, effectiveSlNo, compositeCode]
     );
 
     const qrDataUrl = await QRCode.toDataURL(compositeCode || effectivePart || alc_code || "HSI", { width: 450, margin: 1 });
@@ -1343,7 +1367,7 @@ app.post("/api/labels/print-single", async (req, res) => {
       success: true,
       message: `Label for ${fileName} printed successfully.`,
       label: {
-        sl_no,
+        sl_no: effectiveSlNo,
         model_no,
         part_no: effectivePart,
         sub_part_no: sub_part_no || effectivePart,
@@ -1374,7 +1398,6 @@ app.post("/api/labels/print-batch", async (req, res) => {
     sub_part_no = "",
     part_name = "",
     alc_code = "",
-    sl_no = "",
     printedBy = "operator",
   } = req.body;
 
@@ -1383,54 +1406,66 @@ app.post("/api/labels/print-batch", async (req, res) => {
   }
 
   const effectivePart = part_no || sub_part_no || "PART";
-  const compositeCode = buildCompositeCode({
-    prefix: "",
-    partNo: effectivePart,
-    slNo: sl_no,
-    modelNo: model_no,
-    alcCode: alc_code,
-  });
-
   const printedList = [];
 
-  for (const f of files) {
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
     const fName = typeof f === "object" ? f.name : f;
-    const qrFileName = `lbl_100x30_${sanitizeFileName(effectivePart)}_${Date.now()}_${Math.floor(Math.random()*1000)}.png`;
+    const pieceSlNo = (typeof f === "object" && f.sl_no)
+      ? String(f.sl_no)
+      : String(i + 1).padStart(4, "0");
+
+    const pieceComposite = buildCompositeCode({
+      prefix: "",
+      partNo: effectivePart,
+      slNo: pieceSlNo,
+      modelNo: model_no,
+      alcCode: alc_code,
+    });
+
+    const safePart = sanitizeFileName(effectivePart);
+    const qrFileName = `lbl_100x30_${safePart}_${pieceSlNo}_${Date.now()}_${Math.floor(Math.random()*1000)}.png`;
     const qrPath = path.join(QR_OUTPUT_DIR, qrFileName);
 
-    await QRCode.toFile(qrPath, compositeCode || effectivePart || alc_code || "HSI", { width: 450, margin: 1 });
+    await QRCode.toFile(qrPath, pieceComposite, { width: 450, margin: 1, errorCorrectionLevel: "H" });
 
-    await insertLabelLog({
-      slNo: String(sl_no || ""),
+    const qrDataUrl = await QRCode.toDataURL(pieceComposite, { width: 450, margin: 1 });
+
+    const labelLog = await insertLabelLog({
+      slNo: pieceSlNo,
       modelNo: String(model_no || ""),
       partNo: String(effectivePart || ""),
       subPartNo: String(sub_part_no || effectivePart || ""),
       partName: String(part_name || ""),
       alcCode: String(alc_code || ""),
-      compositeCode,
+      compositeCode: pieceComposite,
       batchCode: alc_code || "",
       qrFile: qrFileName,
       printedBy,
     });
 
     await pool.query(
-      `UPDATE logs SET printed = TRUE, printed_at = NOW() WHERE folder_path = $1 AND file_name = $2`,
-      [folderPath, fName]
+      `UPDATE logs SET printed = TRUE, printed_at = NOW(), sl_no = $3, composite_code = $4 WHERE folder_path = $1 AND file_name = $2`,
+      [folderPath, fName, pieceSlNo, pieceComposite]
     );
 
     const host = req.get("host") || "localhost:5000";
     const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
     printedList.push({
       fileName: fName,
+      sl_no: pieceSlNo,
+      composite_code: pieceComposite,
       qr_file: qrFileName,
       qr_url: `${proto}://${host}/qr-output/${qrFileName}`,
+      qr_data_url: qrDataUrl,
+      log_id: labelLog?.id,
     });
   }
 
   res.json({
     success: true,
     count: printedList.length,
-    message: `Printed ${printedList.length} 100x30 labels successfully.`,
+    message: `Printed ${printedList.length} unique 100x30 labels successfully.`,
     labels: printedList,
   });
 });

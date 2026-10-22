@@ -76,7 +76,8 @@ async function initDb() {
     await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS shift TEXT`);
     await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS trace_number TEXT`);
     await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS pressure TEXT`);
-    await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS pack_qty TEXT`);
+    await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS sl_no TEXT`);
+    await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS composite_code TEXT`);
     await pool.query(`ALTER TABLE logs ADD COLUMN IF NOT EXISTS remark TEXT`);
   } catch (e) {}
 
@@ -240,9 +241,9 @@ async function insertLog({
       folder_name, folder_path, file_name, file_path, status,
       model_no, part_no, sub_part_no, alc_code,
       operator, shift, trace_number, pressure, pack_qty, remark,
-      printed, printed_at
+      printed, printed_at, sl_no
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CASE WHEN $16 THEN NOW() ELSE NULL END)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CASE WHEN $16 THEN NOW() ELSE NULL END, $17)
     RETURNING *`,
     [
       folderName,
@@ -261,6 +262,7 @@ async function insertLog({
       defPackQty,
       defRemark,
       !!printed,
+      slNo || null,
     ]
   );
   return res.rows[0];
