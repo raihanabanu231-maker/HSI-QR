@@ -447,7 +447,7 @@ export default function App() {
     const saved = localStorage.getItem("hsi_last_folder");
     return saved && saved !== "/" && isWindowsPath(saved)
       ? saved
-      : "C:\\LPSPOST";
+      : "C:\\";
   });
   const [isScanning, setIsScanning] = useState(false);
   const [autoWatcherActive, setAutoWatcherActive] = useState(false);
@@ -459,7 +459,7 @@ export default function App() {
     const saved = localStorage.getItem("hsi_last_folder");
     return saved && saved !== "/" && isWindowsPath(saved)
       ? saved
-      : "C:\\LPSPOST";
+      : "C:\\";
   });
   const [browseFolders, setBrowseFolders] = useState([]);
   const [browseParentPath, setBrowseParentPath] = useState(null);
@@ -534,12 +534,12 @@ export default function App() {
     loadAuditLogs();
     loadDrives();
     loadUsers();
-    // Restore last folder or default to C:\LPSPOST
+    // Restore last folder or default to C:\
     const savedFolder = localStorage.getItem("hsi_last_folder");
     if (savedFolder && savedFolder !== "/" && isWindowsPath(savedFolder)) {
       openFolder(savedFolder);
     } else {
-      openFolder("C:\\LPSPOST");
+      openFolder("C:\\");
     }
   }, []);
 
@@ -608,7 +608,7 @@ export default function App() {
   }
 
   function openFolder(targetPath) {
-    let p = sanitizePath(targetPath) || "C:\\LPSPOST";
+    let p = sanitizePath(targetPath) || "C:\\";
     if (p === "/" || p === "\\" || !isWindowsPath(p)) {
       p = "C:\\";
     }

@@ -852,7 +852,6 @@ const VIRTUAL_DRIVES_DIR = path.join(__dirname, "storage", "virtual_drives");
 
 function ensureVirtualDrives() {
   const dirs = [
-    path.join(VIRTUAL_DRIVES_DIR, "C", "LPSPOST"),
     path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "DropZone"),
     path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "OK_Images"),
     path.join(VIRTUAL_DRIVES_DIR, "C", "Inspection", "NG_Defects"),
