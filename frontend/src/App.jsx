@@ -764,18 +764,19 @@ export default function App() {
     const MAX_BATCH = 300;
     const filesToUpload = imageFiles.length > MAX_BATCH ? imageFiles.slice(0, MAX_BATCH) : imageFiles;
 
-    const cleanFolderName = "Camera_Uploads";
+    const cleanFolderName = "Selected_Files";
     const targetDisplayPath = `C:\\Inspection\\${cleanFolderName}`;
 
     setSelectedFolder(targetDisplayPath);
     setBrowseCurrentPath(targetDisplayPath);
     setIsUploadingFolder(true);
-    setUploadProgress(`Uploading ${filesToUpload.length} camera inspection images...`);
+    setUploadProgress(`Loading ${filesToUpload.length} selected inspection image(s)...`);
     setError("");
 
     try {
       const formData = new FormData();
       formData.append("folderName", cleanFolderName);
+      formData.append("clearFolder", "true");
 
       const relPaths = [];
       filesToUpload.forEach((file) => {
@@ -2968,7 +2969,7 @@ export default function App() {
                       <button
                         key={d}
                         type="button"
-                        className={`drive-chip ${browseCurrentPath && browseCurrentPath.startsWith(d) && !browseCurrentPath.includes("Users") ? "active" : ""}`}
+                        className={`drive-chip ${browseCurrentPath && browseCurrentPath.startsWith(d) ? "active" : ""}`}
                         onClick={() => openFolder(d)}
                         title={`Browse Drive ${d}`}
                       >
@@ -2976,32 +2977,6 @@ export default function App() {
                         <span>{d}</span>
                       </button>
                     ))}
-                    <button
-                      type="button"
-                      className={`drive-chip ${browseCurrentPath === "C:\\Users\\user\\Pictures" ? "active" : ""}`}
-                      onClick={() => {
-                        setSelectedFolder("C:\\Users\\user\\Pictures");
-                        openFolder("C:\\Users\\user\\Pictures");
-                        scanInspectionFolder("C:\\Users\\user\\Pictures");
-                      }}
-                      title="Quick Scan Pictures Folder (contains carrot_OK_IMG.jpeg)"
-                    >
-                      <Camera size={13} />
-                      <span>📸 Pictures (Carrot Image)</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`drive-chip ${browseCurrentPath === "C:\\Users\\user" ? "active" : ""}`}
-                      onClick={() => {
-                        setSelectedFolder("C:\\Users\\user");
-                        openFolder("C:\\Users\\user");
-                        scanInspectionFolder("C:\\Users\\user");
-                      }}
-                      title="Quick Scan User Home Folder"
-                    >
-                      <FolderOpen size={13} />
-                      <span>📁 User Folder</span>
-                    </button>
                     {selectedFolder && (
                       <button
                         type="button"
@@ -3234,30 +3209,15 @@ export default function App() {
                     <p className="no-img-sub">
                       Select or drop camera files here. All valid inspection images (.png, .jpg, .svg) appear here ready for 100x30 barcode label printing.
                     </p>
-                    <div style={{ display: "flex", gap: "8px", justifyContent: "center", marginTop: "12px", flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        className="btn-dash-action"
-                        style={{ background: "#059669", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "600" }}
-                        onClick={() => nativeFileInputRef.current?.click()}
-                      >
-                        <Camera size={14} />
-                        <span>📷 Select Camera Images Directly</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-dash-action"
-                        style={{ background: "#1d4ed8", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "600" }}
-                        onClick={() => {
-                          setSelectedFolder("C:\\Users\\user\\Pictures");
-                          openFolder("C:\\Users\\user\\Pictures");
-                          scanInspectionFolder("C:\\Users\\user\\Pictures");
-                        }}
-                      >
-                        <Zap size={14} />
-                        <span>⚡ Scan Pictures (Carrot Image)</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="btn-dash-action"
+                      style={{ marginTop: "12px", background: "#059669", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: "600" }}
+                      onClick={() => nativeFileInputRef.current?.click()}
+                    >
+                      <Camera size={14} />
+                      <span>📷 Select Camera Images Directly</span>
+                    </button>
                   </div>
                 ) : (
                   <div className="image-cards-flow">

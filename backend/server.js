@@ -1003,34 +1003,45 @@ app.get("/api/browse", (req, res) => {
     let okCount = 0;
     let ngCount = 0;
 
-    function countSubImages(curDir, d = 0) {
-      if (d > 15) return;
-      try {
-        const subEntries = fs.readdirSync(curDir, { withFileTypes: true });
-        for (const se of subEntries) {
-          if (se.isDirectory()) {
-            const lower = se.name.toLowerCase();
-            if (lower.startsWith(".") || lower === "node_modules" || lower === "$recycle.bin" || lower === "windows") continue;
-            countSubImages(path.join(curDir, se.name), d + 1);
-          } else {
-            const ext = path.extname(se.name).toLowerCase();
-            if (IMAGE_EXT.includes(ext)) {
-              imageFiles.push(se.name);
-              const nameOnly = path.parse(se.name).name;
-              const isNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject|fail|bad|flaw/i.test(nameOnly) ||
-                           /(^|[^a-z0-9])ng([^a-z0-9]|$)|defect|reject|fail/i.test(curDir.toLowerCase());
-              if (isNg) ngCount++;
-              else okCount++;
-            }
+    const cleanDisplay = displayPath.replace(/\//g, "\\");
+    const isRootDrive = /^[a-zA-Z]:\\?$/.test(cleanDisplay);
+
+    // Only count images in the CURRENT directory (and immediate OK/NG subfolders)
+    // NEVER recursively crawl the entire hard drive or parent drive roots
+    if (!isRootDrive) {
+      for (const entry of entries) {
+        if (!entry.isDirectory()) {
+          const ext = path.extname(entry.name).toLowerCase();
+          if (IMAGE_EXT.includes(ext)) {
+            imageFiles.push(entry.name);
+            const nameOnly = path.parse(entry.name).name;
+            const isNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject|fail|bad|flaw/i.test(nameOnly);
+            if (isNg) ngCount++;
+            else okCount++;
+          }
+        } else {
+          const subLower = entry.name.toLowerCase();
+          if (["ok", "ng", "pass", "fail", "defect", "reject"].includes(subLower)) {
+            try {
+              const subEntries = fs.readdirSync(path.join(realPath, entry.name), { withFileTypes: true });
+              for (const se of subEntries) {
+                if (!se.isDirectory()) {
+                  const ext = path.extname(se.name).toLowerCase();
+                  if (IMAGE_EXT.includes(ext)) {
+                    imageFiles.push(se.name);
+                    if (["ng", "defect", "reject", "fail"].includes(subLower)) ngCount++;
+                    else okCount++;
+                  }
+                }
+              }
+            } catch (e) {}
           }
         }
-      } catch (e) {}
+      }
     }
-    countSubImages(realPath, 0);
 
     // Calculate parent in Windows format
     let parent = null;
-    const cleanDisplay = displayPath.replace(/\//g, "\\");
     if (!/^[a-zA-Z]:\\?$/.test(cleanDisplay)) {
       const parts = cleanDisplay.split("\\").filter(Boolean);
       parts.pop();
@@ -1153,6 +1164,21 @@ app.post("/api/folder/upload", folderUpload.array("files", 1000), async (req, re
     const targetDisplayPath = `C:\\Inspection\\${cleanFolderName}`;
     const { realPath, displayPath } = resolveSystemPath(targetDisplayPath);
 
+    // If uploading a new batch of selected files, wipe out any old files in this folder first
+    if (fs.existsSync(realPath) && (req.body.clearFolder === "true" || cleanFolderName.includes("Selected") || cleanFolderName.includes("Upload"))) {
+      try {
+        const oldEntries = fs.readdirSync(realPath);
+        for (const oe of oldEntries) {
+          const oePath = path.join(realPath, oe);
+          if (fs.lstatSync(oePath).isDirectory()) {
+            fs.rmSync(oePath, { recursive: true, force: true });
+          } else {
+            fs.unlinkSync(oePath);
+          }
+        }
+      } catch (e) {}
+    }
+
     if (!fs.existsSync(realPath)) {
       fs.mkdirSync(realPath, { recursive: true });
     }
@@ -1197,7 +1223,7 @@ app.post("/api/folder/upload", folderUpload.array("files", 1000), async (req, re
       success: true,
       folderPath: displayPath,
       uploadedCount: savedCount,
-      message: `Successfully uploaded ${savedCount} inspection images to ${displayPath}`,
+      message: `Successfully loaded ${savedCount} inspection images to ${displayPath}`,
     });
   } catch (err) {
     console.error("Folder upload error:", err);
@@ -1230,51 +1256,31 @@ app.post("/api/folder/scan", async (req, res) => {
   const ngFiles = [];
   const folderName = path.basename(displayPath) || displayPath;
 
-  const IGNORE_SCAN_DIRS = new Set([
-    "node_modules", ".git", "$recycle.bin", "system volume information",
-    "windows", "program files", "program files (x86)", "appdata", "local settings",
-    "application data", "cache", "temp", "tmp", "dist", "build"
-  ]);
+  const cleanDisplay = displayPath.replace(/\//g, "\\");
+  const isRootDrive = /^[a-zA-Z]:\\?$/.test(cleanDisplay);
 
-  function walk(dir, depth = 0) {
-    if (depth > 5) return; // Keep factory scan focused & lightning-fast
-    if (okFiles.length + ngFiles.length >= 250) return;
-
-    let entries;
+  // If user is at a root drive (e.g. C:\ or D:\), do NOT scan root for camera parts!
+  // Root drives are parent navigation points. Images belong in specific folders.
+  if (!isRootDrive) {
+    let entries = [];
     try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
+      entries = fs.readdirSync(cleanFolderPath, { withFileTypes: true });
     } catch (e) {
-      return;
+      entries = [];
     }
 
-    // Process files directly in this folder first, then recurse subdirectories
-    entries.sort((a, b) => {
-      if (!a.isDirectory() && b.isDirectory()) return -1;
-      if (a.isDirectory() && !b.isDirectory()) return 1;
-      return 0;
-    });
-
+    // Inspect files directly in the specifically selected folder
     for (const entry of entries) {
       if (okFiles.length + ngFiles.length >= 250) break;
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (fullPath === QR_OUTPUT_DIR) continue;
-        const lowerName = entry.name.toLowerCase();
-        if (IGNORE_SCAN_DIRS.has(lowerName) || entry.name.startsWith(".")) continue;
-        walk(fullPath, depth + 1);
-      } else {
+      const fullPath = path.join(cleanFolderPath, entry.name);
+
+      if (!entry.isDirectory()) {
         const ext = path.extname(entry.name).toLowerCase();
-        if (!IMAGE_EXT.includes(ext)) {
-          continue;
-        }
+        if (!IMAGE_EXT.includes(ext)) continue;
 
         const nameOnly = path.parse(entry.name).name;
-        const relDir = path.relative(cleanFolderPath, dir).toLowerCase();
-
-        // Accurate classification: files containing "ok" are always OK; defect keywords mark NG
         const isExplicitOk = /(^|[^a-z0-9])ok([^a-z0-9]|$)|_ok_|-ok-/i.test(nameOnly);
-        const isExplicitNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject|fail|bad|flaw|error|_ng_|-ng-/i.test(nameOnly) ||
-                             /(^|[^a-z0-9])ng([^a-z0-9]|$)|defect|reject|fail/i.test(relDir);
+        const isExplicitNg = /(^|[^a-z0-9])ng([^a-z0-9]|$)|not_ok|defect|reject|fail|bad|flaw|error|_ng_|-ng-/i.test(nameOnly);
         const isNg = isExplicitNg && !isExplicitOk;
 
         const host = req.get("host") || "localhost:5000";
@@ -1290,7 +1296,6 @@ app.post("/api/folder/scan", async (req, res) => {
             scannedAt: new Date().toISOString(),
           });
         } else {
-          // If not flagged as defect (NG), it's treated as a valid OK part ready for labeling!
           const pieceIndex = okFiles.length + 1;
           const defaultSlNo = String(pieceIndex).padStart(4, "0");
           okFiles.push({
@@ -1303,11 +1308,51 @@ app.post("/api/folder/scan", async (req, res) => {
             scannedAt: new Date().toISOString(),
           });
         }
+      } else {
+        // Immediate subfolder ONLY if explicitly named ok, ng, pass, fail, defect, reject
+        const subLower = entry.name.toLowerCase();
+        if (["ok", "ng", "pass", "fail", "defect", "reject"].includes(subLower)) {
+          try {
+            const subEntries = fs.readdirSync(fullPath, { withFileTypes: true });
+            for (const se of subEntries) {
+              if (okFiles.length + ngFiles.length >= 250) break;
+              if (se.isDirectory()) continue;
+              const ext = path.extname(se.name).toLowerCase();
+              if (!IMAGE_EXT.includes(ext)) continue;
+
+              const subFilePath = path.join(fullPath, se.name);
+              const host = req.get("host") || "localhost:5000";
+              const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+              const previewUrl = `${proto}://${host}/api/image-preview?path=${encodeURIComponent(subFilePath)}`;
+
+              const isNgSubdir = ["ng", "defect", "reject", "fail"].includes(subLower);
+              if (isNgSubdir) {
+                ngFiles.push({
+                  name: se.name,
+                  fullPath: subFilePath,
+                  previewUrl,
+                  status: "NG",
+                  scannedAt: new Date().toISOString(),
+                });
+              } else {
+                const pieceIndex = okFiles.length + 1;
+                const defaultSlNo = String(pieceIndex).padStart(4, "0");
+                okFiles.push({
+                  name: se.name,
+                  fullPath: subFilePath,
+                  previewUrl,
+                  status: "OK",
+                  pieceIndex,
+                  defaultSlNo,
+                  scannedAt: new Date().toISOString(),
+                });
+              }
+            }
+          } catch (e) {}
+        }
       }
     }
   }
-
-  walk(cleanFolderPath, 0);
 
   // Single batch database query to fetch all existing inspection records for this folder
   const existingMap = new Map();
