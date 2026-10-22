@@ -565,15 +565,14 @@ export default function App() {
     return () => clearInterval(clockInterval);
   }, []);
 
-  // Suppress document title during printing so Chrome/Edge does not print header text
+  // Keep document title strictly empty so Chrome/Edge NEVER prints header text
   useEffect(() => {
-    let savedTitle = document.title;
+    document.title = "";
     const handleBeforePrint = () => {
-      savedTitle = document.title;
       document.title = "";
     };
     const handleAfterPrint = () => {
-      document.title = savedTitle || "HSI Industrial Inspection & 100x30 Label System";
+      document.title = "";
     };
     window.addEventListener("beforeprint", handleBeforePrint);
     window.addEventListener("afterprint", handleAfterPrint);
@@ -1511,7 +1510,12 @@ export default function App() {
         }
         setCounters((prev) => ({ ...prev, total_labels_today: prev.total_labels_today + (data.count || 0) }));
         setPrintFeedback(`✓ Successfully printed all ${data.count || okImages.length} unique 100x30 labels!`);
-        window.print();
+        const labelsToPrint = (data.labels && data.labels.length > 0)
+          ? data.labels
+          : okImages.map((i) => i.label).filter(Boolean);
+        if (labelsToPrint.length > 0) {
+          triggerMultiLabel100x30Print(labelsToPrint);
+        }
       })
       .catch((err) => setError("Batch print failed: " + err.message));
   }
@@ -1776,42 +1780,36 @@ export default function App() {
   <style>
     @page {
       size: ${printDim.w} ${printDim.h};
-      margin: 0mm !important;
+      margin: 0;
     }
-    @page :first { margin: 0mm !important; }
-    @page :left { margin: 0mm !important; }
-    @page :right { margin: 0mm !important; }
-    @media print {
-      @page {
-        size: ${printDim.w} ${printDim.h} !important;
-        margin: 0mm !important;
-      }
-      *, *::before, *::after {
-        box-sizing: border-box !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
-      html, body {
-        width: ${printDim.w} !important;
-        height: ${printDim.h} !important;
-        max-width: ${printDim.w} !important;
-        max-height: ${printDim.h} !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: hidden !important;
-        background: #ffffff !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-      }
-      svg {
-        width: ${printDim.w} !important;
-        height: ${printDim.h} !important;
-        max-width: ${printDim.w} !important;
-        max-height: ${printDim.h} !important;
-        display: block !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
+    @page :first { margin: 0; }
+    @page :left { margin: 0; }
+    @page :right { margin: 0; }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: ${printDim.w};
+      height: ${printDim.h};
+      max-width: ${printDim.w};
+      max-height: ${printDim.h};
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #ffffff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    svg {
+      width: ${printDim.w};
+      height: ${printDim.h};
+      max-width: ${printDim.w};
+      max-height: ${printDim.h};
+      display: block;
+      margin: 0;
+      padding: 0;
     }
   </style>
 </head>
@@ -1821,6 +1819,8 @@ export default function App() {
 </html>`);
     doc.close();
 
+    const prevTitle = document.title;
+    document.title = "";
     setTimeout(() => {
       try {
         printFrame.contentWindow.focus();
@@ -1829,6 +1829,7 @@ export default function App() {
         console.error("Print frame invocation error:", err);
       }
       setTimeout(() => {
+        document.title = prevTitle;
         try {
           if (printFrame && printFrame.parentNode) {
             document.body.removeChild(printFrame);
@@ -1911,57 +1912,51 @@ export default function App() {
   <style>
     @page {
       size: ${printDim.w} ${printDim.h};
-      margin: 0mm !important;
+      margin: 0;
     }
-    @page :first { margin: 0mm !important; }
-    @page :left { margin: 0mm !important; }
-    @page :right { margin: 0mm !important; }
-    @media print {
-      @page {
-        size: ${printDim.w} ${printDim.h} !important;
-        margin: 0mm !important;
-      }
-      *, *::before, *::after {
-        box-sizing: border-box !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
-      html, body {
-        width: ${printDim.w} !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: #ffffff !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-      }
-      .label-page {
-        width: ${printDim.w} !important;
-        height: ${printDim.h} !important;
-        max-width: ${printDim.w} !important;
-        max-height: ${printDim.h} !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        page-break-before: avoid !important;
-        page-break-inside: avoid !important;
-        break-inside: avoid !important;
-        page-break-after: always !important;
-        break-after: page !important;
-        overflow: hidden !important;
-        display: block !important;
-      }
-      .label-page:last-child {
-        page-break-after: avoid !important;
-        break-after: avoid !important;
-      }
-      svg {
-        width: ${printDim.w} !important;
-        height: ${printDim.h} !important;
-        max-width: ${printDim.w} !important;
-        max-height: ${printDim.h} !important;
-        display: block !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
+    @page :first { margin: 0; }
+    @page :left { margin: 0; }
+    @page :right { margin: 0; }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: ${printDim.w};
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .label-page {
+      width: ${printDim.w};
+      height: ${printDim.h};
+      max-width: ${printDim.w};
+      max-height: ${printDim.h};
+      margin: 0;
+      padding: 0;
+      page-break-before: avoid;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      page-break-after: always;
+      break-after: page;
+      overflow: hidden;
+      display: block;
+    }
+    .label-page:last-child {
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+    svg {
+      width: ${printDim.w};
+      height: ${printDim.h};
+      max-width: ${printDim.w};
+      max-height: ${printDim.h};
+      display: block;
+      margin: 0;
+      padding: 0;
     }
   </style>
 </head>
@@ -1971,6 +1966,8 @@ export default function App() {
 </html>`);
     doc.close();
 
+    const prevTitle = document.title;
+    document.title = "";
     setTimeout(() => {
       try {
         printFrame.contentWindow.focus();
@@ -1979,6 +1976,7 @@ export default function App() {
         console.error("Multi-print frame invocation error:", err);
       }
       setTimeout(() => {
+        document.title = prevTitle;
         try {
           if (printFrame && printFrame.parentNode) {
             document.body.removeChild(printFrame);
@@ -2029,8 +2027,10 @@ export default function App() {
   <meta charset="utf-8" />
   <title></title>
   <style>
-    @page { size: 100mm 30mm; margin: 0mm !important; }
-    @page :first { margin: 0mm !important; }
+    @page { size: 100mm 30mm; margin: 0; }
+    @page :first { margin: 0; }
+    @page :left { margin: 0; }
+    @page :right { margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       width: 100%;
@@ -2043,35 +2043,20 @@ export default function App() {
       font-family: Arial, sans-serif;
     }
     .print-bar {
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       display: flex;
-      flex-direction: column;
       align-items: center;
-      gap: 8px;
-    }
-    .print-actions {
-      display: flex;
-      gap: 10px;
+      gap: 12px;
     }
     .btn-p {
       background: #2563eb;
       color: white;
       border: none;
-      padding: 8px 18px;
+      padding: 9px 20px;
       font-size: 14px;
       font-weight: bold;
       border-radius: 6px;
       cursor: pointer;
-    }
-    .thermal-tip {
-      background: #fef2f2;
-      border: 1px solid #f87171;
-      padding: 6px 14px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 700;
-      color: #991b1b;
-      text-align: center;
     }
     .label-box {
       width: 100mm;
@@ -2085,10 +2070,6 @@ export default function App() {
       display: block;
     }
     @media print {
-      @page {
-        size: 100mm 30mm !important;
-        margin: 0mm !important;
-      }
       *, *::before, *::after {
         box-sizing: border-box !important;
         margin: 0 !important;
@@ -2129,13 +2110,8 @@ export default function App() {
 </head>
 <body>
   <div class="print-bar">
-    <div class="thermal-tip">
-      ⚠️ <b>Thermal Printer Setup:</b> In Chrome print dialog, set <b>Margins = None</b> and <b>UNCHECK "Headers and footers"</b>!
-    </div>
-    <div class="print-actions">
-      <button class="btn-p" onclick="window.print()">🖨️ Print 100x30mm Label</button>
-      <button class="btn-p" style="background:#64748b;" onclick="window.close()">Close Window</button>
-    </div>
+    <button class="btn-p" onclick="window.print()">🖨️ Print 100x30mm Label</button>
+    <button class="btn-p" style="background:#64748b;" onclick="window.close()">Close Window</button>
   </div>
   <div class="label-box">
     ${svgHtml}

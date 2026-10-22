@@ -1918,19 +1918,21 @@ body {
 
 /* =========================================================
    PRINT SPECIFICATION FOR 100x30mm THERMAL LABELS
+   Zero margins to completely remove browser headers & footers
    ========================================================= */
+@page {
+  size: 100mm 30mm;
+  margin: 0;
+}
+@page :first { margin: 0; }
+@page :left { margin: 0; }
+@page :right { margin: 0; }
+
 .print-target-wrapper {
   display: none;
 }
 
 @media print {
-  @page {
-    size: 100mm 30mm !important;
-    margin: 0mm !important;
-  }
-  @page :first { margin: 0mm !important; }
-  @page :left { margin: 0mm !important; }
-  @page :right { margin: 0mm !important; }
 
   *, *::before, *::after {
     box-sizing: border-box !important;
