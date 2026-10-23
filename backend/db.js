@@ -49,8 +49,9 @@ if (isMySQL) {
       // Convert date casting e.g. scanned_at::date -> DATE(scanned_at)
       mysqlSql = mysqlSql.replace(/([a-zA-Z0-9_]+)::date/gi, "DATE($1)");
 
-      // Strip Postgres cast types (::int, ::text, ::date, etc.)
-      mysqlSql = mysqlSql.replace(/::(int|text|date|integer|varchar)/gi, "");
+      // Strip Postgres cast types (::int, ::text, ::date, ::numeric, etc.)
+      mysqlSql = mysqlSql.replace(/::(int|text|date|integer|varchar|numeric)/gi, "");
+      mysqlSql = mysqlSql.replace(/NULLS\s+(FIRST|LAST)/gi, "");
 
       // Strip RESTART IDENTITY
       mysqlSql = mysqlSql.replace(/RESTART\s+IDENTITY/gi, "");
@@ -548,7 +549,7 @@ async function getSubParts(modelNo, partNo) {
     `SELECT *
      FROM master_parts
      WHERE model_no = $1 AND (part_no = $2 OR sub_part_no = $2)
-     ORDER BY NULLIF(regexp_replace(sl_no, '[^0-9]', '', 'g'), '')::numeric NULLS LAST, sl_no ASC, id ASC`,
+     ORDER BY sl_no ASC, id ASC`,
     [modelNo, partNo]
   );
   return rows;
@@ -556,7 +557,7 @@ async function getSubParts(modelNo, partNo) {
 
 async function getAllMasterParts() {
   const { rows } = await pool.query(
-    `SELECT * FROM master_parts ORDER BY model_no ASC, NULLIF(regexp_replace(sl_no, '[^0-9]', '', 'g'), '')::numeric NULLS LAST, sl_no ASC, id ASC`
+    `SELECT * FROM master_parts ORDER BY model_no ASC, sl_no ASC, id ASC`
   );
   return rows;
 }
