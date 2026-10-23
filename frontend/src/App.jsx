@@ -1700,6 +1700,40 @@ export default function App() {
 `;
   }
 
+  // Converts label SVG into 300 DPI high-res PNG for zero-dialog thermal hardware printing
+  async function convertSvgToPngBase64(svgString) {
+    return new Promise((resolve, reject) => {
+      try {
+        const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = 1181; // 100mm @ 300 DPI
+            canvas.height = 354; // 30mm @ 300 DPI
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(url);
+            resolve(canvas.toDataURL("image/png"));
+          } catch (err) {
+            URL.revokeObjectURL(url);
+            reject(err);
+          }
+        };
+        img.onerror = (err) => {
+          URL.revokeObjectURL(url);
+          reject(err);
+        };
+        img.src = url;
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
   // TRIGGER ISOLATED 100x30mm THERMAL LABEL PRINT (1 SHEET, RENDERED FULLY)
   async function trigger100x30Print(label) {
     if (!label) return;
@@ -1747,6 +1781,23 @@ export default function App() {
       composite_code,
       qrSrc,
     });
+
+    // Attempt 1: Direct hardware thermal printing to HPRT HT330 - ZPL (Zero browser dialog, zero headers, zero localhost)
+    try {
+      const pngBase64 = await convertSvgToPngBase64(svgHtml);
+      const res = await fetch(`${API}/labels/print-hardware`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: pngBase64, printerName: "HPRT HT330 - ZPL" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPrintFeedback("✓ Label printed directly to HPRT HT330 thermal printer (no browser dialog)!");
+        return;
+      }
+    } catch (e) {
+      console.warn("Direct hardware printing unavailable, falling back to clean browser print:", e);
+    }
 
     // Remove existing print frame if any
     const existing = document.getElementById("hsi-thermal-print-frame");
@@ -1880,6 +1931,27 @@ export default function App() {
         qrSrc,
       });
       svgs.push(svgHtml);
+    }
+
+    // Attempt 1: Direct hardware thermal printing for each label (Zero browser dialog, zero headers, zero localhost)
+    try {
+      let directCount = 0;
+      for (const svgHtml of svgs) {
+        const pngBase64 = await convertSvgToPngBase64(svgHtml);
+        const res = await fetch(`${API}/labels/print-hardware`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: pngBase64, printerName: "HPRT HT330 - ZPL" }),
+        });
+        const data = await res.json();
+        if (data.success) directCount++;
+      }
+      if (directCount === svgs.length) {
+        setPrintFeedback(`✓ All ${directCount} labels printed directly to HPRT HT330 thermal printer (no browser dialog)!`);
+        return;
+      }
+    } catch (e) {
+      console.warn("Direct hardware printing unavailable, falling back to clean browser print:", e);
     }
 
     const existing = document.getElementById("hsi-thermal-print-frame");
@@ -2110,17 +2182,49 @@ export default function App() {
 </head>
 <body>
   <div class="print-bar">
-    <button class="btn-p" onclick="window.print()">🖨️ Print 100x30mm Label</button>
-    <button class="btn-p" style="background:#64748b;" onclick="window.close()">Close Window</button>
+    <button class="btn-p" style="background:#059669;" onclick="printDirectHardware()">⚡ Direct Thermal Print (Zero Dialog)</button>
+    <button class="btn-p" onclick="window.print()">🖨️ Browser Print</button>
+    <button class="btn-p" style="background:#64748b;" onclick="window.close()">Close</button>
   </div>
   <div class="label-box">
     ${svgHtml}
   </div>
   <script>
-    window.onload = function() {
-      setTimeout(function() { window.print(); }, 200);
-    };
-  <\/script>
+    async function printDirectHardware() {
+      try {
+        const svgEl = document.querySelector('svg');
+        const s = new XMLSerializer().serializeToString(svgEl);
+        const blob = new Blob([s], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = async function() {
+          const canvas = document.createElement('canvas');
+          canvas.width = 1181;
+          canvas.height = 354;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, 1181, 354);
+          ctx.drawImage(img, 0, 0, 1181, 354);
+          URL.revokeObjectURL(url);
+          const pngBase64 = canvas.toDataURL('image/png');
+          const res = await fetch('http://localhost:5000/api/labels/print-hardware', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: pngBase64, printerName: 'HPRT HT330 - ZPL' })
+          });
+          const d = await res.json();
+          if (d.success) {
+            alert('✓ Sticker printed directly to HPRT HT330 thermal printer (no browser dialog)!');
+          } else {
+            alert('Hardware print error: ' + (d.error || 'Failed'));
+          }
+        };
+        img.src = url;
+      } catch (err) {
+        alert('Print error: ' + err.message);
+      }
+    }
+  </script>
 </body>
 </html>`);
     popup.document.close();

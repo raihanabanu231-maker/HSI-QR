@@ -34,6 +34,43 @@ const {
   deleteUser,
   authenticateUser,
 } = require("./db");
+const { printLabelImageDirect } = require("./hardware_printer");
+
+function enforceChromeThermalSettings() {
+  if (process.platform !== "win32") return;
+  try {
+    const baseDir = path.join(process.env.LOCALAPPDATA || "", "Google", "Chrome", "User Data");
+    if (!fs.existsSync(baseDir)) return;
+    const entries = fs.readdirSync(baseDir);
+    const profiles = entries.filter((e) => e === "Default" || e.startsWith("Profile "));
+    for (const prof of profiles) {
+      const prefFile = path.join(baseDir, prof, "Preferences");
+      if (!fs.existsSync(prefFile)) continue;
+      try {
+        const raw = fs.readFileSync(prefFile, "utf8");
+        const json = JSON.parse(raw);
+        if (!json.printing) json.printing = {};
+        if (!json.printing.print_preview_sticky_settings) json.printing.print_preview_sticky_settings = {};
+        let appState = {};
+        try {
+          appState = JSON.parse(json.printing.print_preview_sticky_settings.appState || "{}");
+        } catch (e) {}
+        appState.isHeaderFooterEnabled = false;
+        appState.marginsType = 1; // 1 = None (0 margins)
+        appState.isCssBackgroundEnabled = true;
+        appState.mediaSize = {
+          custom_display_name: "100x30mm",
+          width_microns: 100000,
+          height_microns: 30000,
+          is_default: true,
+        };
+        json.printing.print_preview_sticky_settings.appState = JSON.stringify(appState);
+        fs.writeFileSync(prefFile, JSON.stringify(json, null, 2), "utf8");
+      } catch (err) {}
+    }
+  } catch (err) {}
+}
+enforceChromeThermalSettings();
 
 const app = express();
 app.use(cors());
@@ -529,6 +566,22 @@ app.get("/api/labels/qr-dataurl", async (req, res) => {
     res.json({ success: true, dataUrl });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Direct hardware thermal printing to HPRT HT330 - ZPL (Zero browser dialog, zero headers, zero localhost)
+app.post("/api/labels/print-hardware", async (req, res) => {
+  const { imageBase64, printerName = "HPRT HT330 - ZPL" } = req.body;
+  if (!imageBase64) {
+    return res.status(400).json({ error: "No imageBase64 provided for printing" });
+  }
+  try {
+    enforceChromeThermalSettings();
+    const result = await printLabelImageDirect(imageBase64, printerName);
+    res.json(result);
+  } catch (err) {
+    console.error("Direct hardware print error:", err);
+    res.status(500).json({ error: "Direct print failed: " + err.message });
   }
 });
 
